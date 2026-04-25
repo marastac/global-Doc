@@ -16,7 +16,11 @@ const DB_FILE = path.join(__dirname, "sim_data.json");
 // ====== ENV ======
 const NOWPAYMENTS_API_KEY = (process.env.NOWPAYMENTS_API_KEY || "").trim();
 const NOWPAYMENTS_IPN_SECRET = (process.env.NOWPAYMENTS_IPN_SECRET || "").trim();
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").trim(); // ej: https://xxxx.ngrok-free.dev
+
+// IMPORTANTE:
+// En tu proyecto, PUBLIC_BASE_URL lo estás usando como "URL pública del FRONTEND" (Vercel).
+// Eso está BIEN para success_url y cancel_url.
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").trim(); // ej: https://tu-frontend.vercel.app
 
 // ====== Body parsing ======
 // Para IPN necesitamos el body "crudo" para verificar firma
@@ -28,12 +32,50 @@ app.use(
   })
 );
 
-// CORS simple para permitir peticiones desde el frontend (Vite)
+/* ================== CORS (PRO) ==================
+   - Permite localhost (dev) y tu Vercel (prod)
+   - Permite previews *.vercel.app
+================================================== */
+function getOriginOnly(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]);
+
+// Si PUBLIC_BASE_URL es tu frontend (Vercel), lo permitimos también.
+const frontendOrigin = getOriginOnly(PUBLIC_BASE_URL);
+if (frontendOrigin) allowedOrigins.add(frontendOrigin);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // curl/postman o requests sin Origin
+  if (allowedOrigins.has(origin)) return true;
+  // Permitir previews de Vercel
+  if (/^https:\/\/.*\.vercel\.app$/i.test(origin)) return true;
+  return false;
+}
+
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "http://localhost:5173");
+  const origin = req.headers.origin;
+
+  if (origin && isAllowedOrigin(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Vary", "Origin");
+  }
+
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, X-Nowpayments-Sig"
+  );
+
+  if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
 
@@ -63,17 +105,41 @@ function safeJson(res, status, obj) {
   res.status(status).json(obj);
 }
 
+// Base pública REAL del backend (Render) según el request
+function getBackendBase(req) {
+  const proto =
+    (req.headers["x-forwarded-proto"] || req.protocol || "https")
+      .toString()
+      .split(",")[0]
+      .trim();
+  const host =
+    (req.headers["x-forwarded-host"] || req.headers.host || "")
+      .toString()
+      .split(",")[0]
+      .trim();
+  return `${proto}://${host}`;
+}
+
 /* ================== CONFIG SIMULACIÓN ================== */
 
-const SERVICES = ["visa", "green_card", "pasaporte_eu", "licencia", "passport_nationality"];
+const SERVICES = [
+  "visa",
+  "green_card",
+  "pasaporte_eu",
+  "licencia",
+  "passport_nationality",
+];
 const RESULTS = ["success", "success", "success", "failed"]; // ~75% éxito
 
 /* ================== NOWPAYMENTS HELPERS ================== */
 
 function assertNowPaymentsConfigured() {
-  if (!NOWPAYMENTS_API_KEY) throw new Error("NOWPAYMENTS_API_KEY no está configurada en .env");
-  if (!NOWPAYMENTS_IPN_SECRET) throw new Error("NOWPAYMENTS_IPN_SECRET no está configurada en .env");
-  if (!PUBLIC_BASE_URL) throw new Error("PUBLIC_BASE_URL no está configurada en .env");
+  if (!NOWPAYMENTS_API_KEY)
+    throw new Error("NOWPAYMENTS_API_KEY no está configurada en .env");
+  if (!NOWPAYMENTS_IPN_SECRET)
+    throw new Error("NOWPAYMENTS_IPN_SECRET no está configurada en .env");
+  if (!PUBLIC_BASE_URL)
+    throw new Error("PUBLIC_BASE_URL (frontend) no está configurada en .env");
 }
 
 function computeHmacHex(algo, secret, bodyBuffer) {
@@ -115,7 +181,8 @@ async function nowpaymentsFetch(pathname, method, bodyObj) {
   }
 
   if (!r.ok) {
-    const msg = json?.message || json?.error || `NOWPayments error (${r.status})`;
+    const msg =
+      json?.message || json?.error || `NOWPayments error (${r.status})`;
     const detail = json?.errors || json;
     const e = new Error(msg);
     e.detail = detail;
@@ -128,9 +195,10 @@ async function nowpaymentsFetch(pathname, method, bodyObj) {
 /* ================== ROOT PRO (evita Cannot GET /) ================== */
 
 app.get("/", (req, res) => {
-  const ipnUrl = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/api/nowpayments/ipn` : "(configura PUBLIC_BASE_URL)";
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  const backendBase = getBackendBase(req);
+  const ipnUrl = `${backendBase}/api/nowpayments/ipn`;
 
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(`
 <!doctype html>
 <html>
@@ -158,9 +226,8 @@ app.get("/", (req, res) => {
 
     <div class="card">
       <div class="pill">Estado</div>
-      <p class="muted">API Key: <b>${NOWPAYMENTS_API_KEY ? "OK" : "FALTA"}</b> · IPN Secret: <b>${NOWPAYMENTS_IPN_SECRET ? "OK" : "FALTA"}</b> · Public Base URL: <b>${PUBLIC_BASE_URL ? "OK" : "FALTA"}</b></p>
-      <p class="muted">IPN Webhook URL: <code>${ipnUrl}</code></p>
-      ${PUBLIC_BASE_URL ? "" : `<p class="danger"><b>Te falta PUBLIC_BASE_URL</b> en .env para que success/cancel/IPN queden bien.</p>`}
+      <p class="muted">API Key: <b>${NOWPAYMENTS_API_KEY ? "OK" : "FALTA"}</b> · IPN Secret: <b>${NOWPAYMENTS_IPN_SECRET ? "OK" : "FALTA"}</b> · Frontend (PUBLIC_BASE_URL): <b>${PUBLIC_BASE_URL ? "OK" : "FALTA"}</b></p>
+      <p class="muted">IPN Webhook URL (BACKEND): <code>${ipnUrl}</code></p>
     </div>
 
     <div class="card">
@@ -188,14 +255,14 @@ app.get("/", (req, res) => {
 /* ================== STATUS (PRO) ================== */
 
 app.get("/api/status", (req, res) => {
-  const ok = !!(NOWPAYMENTS_API_KEY && NOWPAYMENTS_IPN_SECRET && PUBLIC_BASE_URL);
+  const backendBase = getBackendBase(req);
   safeJson(res, 200, {
-    ok,
+    ok: true,
     env: {
       NOWPAYMENTS_API_KEY: NOWPAYMENTS_API_KEY ? "OK" : "MISSING",
       NOWPAYMENTS_IPN_SECRET: NOWPAYMENTS_IPN_SECRET ? "OK" : "MISSING",
-      PUBLIC_BASE_URL: PUBLIC_BASE_URL ? PUBLIC_BASE_URL : "MISSING",
-      ipn_url_expected: PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/api/nowpayments/ipn` : "MISSING",
+      PUBLIC_BASE_URL_frontend: PUBLIC_BASE_URL ? PUBLIC_BASE_URL : "MISSING",
+      ipn_url_expected_backend: `${backendBase}/api/nowpayments/ipn`,
     },
   });
 });
@@ -297,8 +364,13 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
       return safeJson(res, 400, { error: "price_amount inválido" });
     }
 
-    const success_url = `${PUBLIC_BASE_URL}/api/nowpayments/ok?order_id=${encodeURIComponent(order_id)}`;
-    const cancel_url = `${PUBLIC_BASE_URL}/api/nowpayments/cancel?order_id=${encodeURIComponent(order_id)}`;
+    // ✅ success/cancel deben ir al FRONTEND (Vercel)
+    const success_url = `${PUBLIC_BASE_URL}/api/nowpayments/ok?order_id=${encodeURIComponent(
+      order_id
+    )}`;
+    const cancel_url = `${PUBLIC_BASE_URL}/api/nowpayments/cancel?order_id=${encodeURIComponent(
+      order_id
+    )}`;
 
     const payload = {
       price_amount: amount,
@@ -311,7 +383,7 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
 
     const created = await nowpaymentsFetch("/v1/invoice", "POST", payload);
 
-    // ✅ Guardar evidencia en sim_data.json (PRO para demo)
+    // Guardar evidencia
     const db = readDB();
     db.push({
       simId: `SIM-INVOICE-${Date.now()}`,
@@ -326,7 +398,8 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
 
     return safeJson(res, 200, {
       invoice_id: created?.id || created?.invoice_id || null,
-      invoice_url: created?.invoice_url || created?.invoiceUrl || created?.payment_url || null,
+      invoice_url:
+        created?.invoice_url || created?.invoiceUrl || created?.payment_url || null,
       raw: created,
     });
   } catch (e) {
@@ -347,11 +420,14 @@ app.get("/api/nowpayments/invoice/:id", async (req, res) => {
     const data = await nowpaymentsFetch(`/v1/invoice/${encodeURIComponent(id)}`, "GET");
     return safeJson(res, 200, data);
   } catch (e) {
-    return safeJson(res, 500, { error: e?.message || "Error consultando invoice", detail: e?.detail || null });
+    return safeJson(res, 500, {
+      error: e?.message || "Error consultando invoice",
+      detail: e?.detail || null,
+    });
   }
 });
 
-// IPN webhook
+// IPN webhook (DEBE apuntar al BACKEND)
 app.post("/api/nowpayments/ipn", (req, res) => {
   try {
     assertNowPaymentsConfigured();
@@ -378,7 +454,7 @@ app.post("/api/nowpayments/ipn", (req, res) => {
   }
 });
 
-// success / cancel (no 404)
+// success / cancel (front redirige aquí como demo)
 app.get("/api/nowpayments/ok", (req, res) => res.send("OK (simulation)"));
 app.get("/api/nowpayments/cancel", (req, res) => res.send("CANCEL (simulation)"));
 
@@ -412,9 +488,6 @@ scheduleAutoGeneration();
 /* ================== START SERVER ================== */
 
 app.listen(PORT, () => {
-  console.log(`Backend SIM corriendo en http://localhost:${PORT}`);
-  if (PUBLIC_BASE_URL) {
-    console.log(`PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}`);
-    console.log(`IPN URL: ${PUBLIC_BASE_URL}/api/nowpayments/ipn`);
-  }
+  console.log(`Backend SIM corriendo en puerto ${PORT}`);
+  console.log(`PUBLIC_BASE_URL (frontend): ${PUBLIC_BASE_URL || "(missing)"}`);
 });
