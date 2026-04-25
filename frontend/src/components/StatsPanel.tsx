@@ -14,7 +14,8 @@ type Stats = {
   last10: RecordItem[];
 };
 
-const API = "http://localhost:3000/api/stats";
+const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+const API = `${API_BASE}/api/stats`;
 
 /**
  * Ajuste de “realismo”:
