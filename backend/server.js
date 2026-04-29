@@ -17,10 +17,11 @@ const DB_FILE = path.join(__dirname, "sim_data.json");
 const NOWPAYMENTS_API_KEY = (process.env.NOWPAYMENTS_API_KEY || "").trim();
 const NOWPAYMENTS_IPN_SECRET = (process.env.NOWPAYMENTS_IPN_SECRET || "").trim();
 
-// IMPORTANTE:
-// En tu proyecto, PUBLIC_BASE_URL lo estás usando como "URL pública del FRONTEND" (Vercel).
-// Eso está BIEN para success_url y cancel_url.
+// PUBLIC_BASE_URL = URL del FRONTEND (Vercel). Se usa para success_url / cancel_url.
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").trim(); // ej: https://tu-frontend.vercel.app
+
+// Token “real” para endpoints de operador (bloqueo real)
+const OPERATOR_ACCESS_TOKEN = (process.env.OPERATOR_ACCESS_TOKEN || "").trim();
 
 // ====== Body parsing ======
 // Para IPN necesitamos el body "crudo" para verificar firma
@@ -44,10 +45,7 @@ function getOriginOnly(url) {
   }
 }
 
-const allowedOrigins = new Set([
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-]);
+const allowedOrigins = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
 
 // Si PUBLIC_BASE_URL es tu frontend (Vercel), lo permitimos también.
 const frontendOrigin = getOriginOnly(PUBLIC_BASE_URL);
@@ -70,10 +68,7 @@ app.use((req, res, next) => {
   }
 
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, X-Nowpayments-Sig"
-  );
+  res.header("Access-Control-Allow-Headers", "Content-Type, X-Nowpayments-Sig, X-Operator-Token");
 
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
@@ -107,39 +102,28 @@ function safeJson(res, status, obj) {
 
 // Base pública REAL del backend (Render) según el request
 function getBackendBase(req) {
-  const proto =
-    (req.headers["x-forwarded-proto"] || req.protocol || "https")
-      .toString()
-      .split(",")[0]
-      .trim();
-  const host =
-    (req.headers["x-forwarded-host"] || req.headers.host || "")
-      .toString()
-      .split(",")[0]
-      .trim();
+  const proto = (req.headers["x-forwarded-proto"] || req.protocol || "https")
+    .toString()
+    .split(",")[0]
+    .trim();
+  const host = (req.headers["x-forwarded-host"] || req.headers.host || "")
+    .toString()
+    .split(",")[0]
+    .trim();
   return `${proto}://${host}`;
 }
 
 /* ================== CONFIG SIMULACIÓN ================== */
 
-const SERVICES = [
-  "visa",
-  "green_card",
-  "pasaporte_eu",
-  "licencia",
-  "passport_nationality",
-];
+const SERVICES = ["visa", "green_card", "pasaporte_eu", "licencia", "passport_nationality"];
 const RESULTS = ["success", "success", "success", "failed"]; // ~75% éxito
 
 /* ================== NOWPAYMENTS HELPERS ================== */
 
 function assertNowPaymentsConfigured() {
-  if (!NOWPAYMENTS_API_KEY)
-    throw new Error("NOWPAYMENTS_API_KEY no está configurada en .env");
-  if (!NOWPAYMENTS_IPN_SECRET)
-    throw new Error("NOWPAYMENTS_IPN_SECRET no está configurada en .env");
-  if (!PUBLIC_BASE_URL)
-    throw new Error("PUBLIC_BASE_URL (frontend) no está configurada en .env");
+  if (!NOWPAYMENTS_API_KEY) throw new Error("NOWPAYMENTS_API_KEY no está configurada");
+  if (!NOWPAYMENTS_IPN_SECRET) throw new Error("NOWPAYMENTS_IPN_SECRET no está configurada");
+  if (!PUBLIC_BASE_URL) throw new Error("PUBLIC_BASE_URL (frontend) no está configurada");
 }
 
 function computeHmacHex(algo, secret, bodyBuffer) {
@@ -181,8 +165,7 @@ async function nowpaymentsFetch(pathname, method, bodyObj) {
   }
 
   if (!r.ok) {
-    const msg =
-      json?.message || json?.error || `NOWPayments error (${r.status})`;
+    const msg = json?.message || json?.error || `NOWPayments error (${r.status})`;
     const detail = json?.errors || json;
     const e = new Error(msg);
     e.detail = detail;
@@ -192,7 +175,25 @@ async function nowpaymentsFetch(pathname, method, bodyObj) {
   return json;
 }
 
-/* ================== ROOT PRO (evita Cannot GET /) ================== */
+/* ================== OPERATOR TOKEN (BLOQUEO REAL) ==================
+   Usar: Header X-Operator-Token: <OPERATOR_ACCESS_TOKEN>
+   Nota: Si no configuras OPERATOR_ACCESS_TOKEN, los endpoints /api/operator/ quedarán bloqueados (401).
+================================================== */
+
+function requireOperatorToken(req, res, next) {
+  const required = OPERATOR_ACCESS_TOKEN;
+  const provided = (req.headers["x-operator-token"] || "").toString().trim();
+
+  if (!required) {
+    return safeJson(res, 401, { error: "operator token not configured (set OPERATOR_ACCESS_TOKEN)" });
+  }
+  if (!provided || provided !== required) {
+    return safeJson(res, 401, { error: "invalid operator token" });
+  }
+  next();
+}
+
+/* ================== ROOT (PANEL INFO) ================== */
 
 app.get("/", (req, res) => {
   const backendBase = getBackendBase(req);
@@ -211,12 +212,11 @@ app.get("/", (req, res) => {
     .wrap{max-width:920px;margin:0 auto;padding:28px}
     .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:16px;margin-top:14px}
     .h{font-size:22px;font-weight:900}
-    .muted{opacity:.8}
+    .muted{opacity:.85}
     a{color:#7dd3fc;text-decoration:none}
     code{background:rgba(0,0,0,.25);padding:2px 6px;border-radius:8px}
     .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.25);font-weight:800}
-    .danger{color:#fca5a5}
   </style>
 </head>
 <body>
@@ -226,25 +226,37 @@ app.get("/", (req, res) => {
 
     <div class="card">
       <div class="pill">Estado</div>
-      <p class="muted">API Key: <b>${NOWPAYMENTS_API_KEY ? "OK" : "FALTA"}</b> · IPN Secret: <b>${NOWPAYMENTS_IPN_SECRET ? "OK" : "FALTA"}</b> · Frontend (PUBLIC_BASE_URL): <b>${PUBLIC_BASE_URL ? "OK" : "FALTA"}</b></p>
+      <p class="muted">
+        API Key: <b>${NOWPAYMENTS_API_KEY ? "OK" : "FALTA"}</b> ·
+        IPN Secret: <b>${NOWPAYMENTS_IPN_SECRET ? "OK" : "FALTA"}</b> ·
+        Frontend (PUBLIC_BASE_URL): <b>${PUBLIC_BASE_URL ? "OK" : "FALTA"}</b> ·
+        Operator Token: <b>${OPERATOR_ACCESS_TOKEN ? "OK" : "FALTA"}</b>
+      </p>
       <p class="muted">IPN Webhook URL (BACKEND): <code>${ipnUrl}</code></p>
+      <p class="muted">Front (success/cancel): <code>${PUBLIC_BASE_URL || "(configura PUBLIC_BASE_URL)"}</code></p>
     </div>
 
     <div class="card">
-      <div class="pill">Endpoints</div>
+      <div class="pill">Endpoints (públicos)</div>
       <div class="grid">
         <div class="card"><b>Stats</b><div class="muted"><a href="/api/stats">/api/stats</a></div></div>
-        <div class="card"><b>Logs</b><div class="muted"><a href="/api/logs">/api/logs</a></div></div>
         <div class="card"><b>Status</b><div class="muted"><a href="/api/status">/api/status</a></div></div>
-        <div class="card"><b>Export JSON</b><div class="muted"><a href="/api/export/json">/api/export/json</a></div></div>
-        <div class="card"><b>Export CSV</b><div class="muted"><a href="/api/export/csv">/api/export/csv</a></div></div>
+        <div class="card"><b>Logs</b><div class="muted"><a href="/api/logs">/api/logs</a></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="pill">Endpoints (OPERADOR · requieren X-Operator-Token)</div>
+      <div class="grid">
+        <div class="card"><b>Operator Logs</b><div class="muted"><code>/api/operator/logs</code></div></div>
+        <div class="card"><b>Export JSON</b><div class="muted"><code>/api/operator/export/json</code></div></div>
+        <div class="card"><b>Export CSV</b><div class="muted"><code>/api/operator/export/csv</code></div></div>
       </div>
     </div>
 
     <div class="card">
       <div class="pill">Demo Invoice</div>
-      <p class="muted">Para crear una invoice: POST <code>/api/nowpayments/invoice</code></p>
-      <p class="muted">Luego abre <code>invoice_url</code> y verás el checkout real.</p>
+      <p class="muted">POST <code>/api/nowpayments/invoice</code> → devuelve <code>invoice_url</code></p>
     </div>
   </div>
 </body>
@@ -252,7 +264,7 @@ app.get("/", (req, res) => {
 `);
 });
 
-/* ================== STATUS (PRO) ================== */
+/* ================== STATUS ================== */
 
 app.get("/api/status", (req, res) => {
   const backendBase = getBackendBase(req);
@@ -262,6 +274,7 @@ app.get("/api/status", (req, res) => {
       NOWPAYMENTS_API_KEY: NOWPAYMENTS_API_KEY ? "OK" : "MISSING",
       NOWPAYMENTS_IPN_SECRET: NOWPAYMENTS_IPN_SECRET ? "OK" : "MISSING",
       PUBLIC_BASE_URL_frontend: PUBLIC_BASE_URL ? PUBLIC_BASE_URL : "MISSING",
+      OPERATOR_ACCESS_TOKEN: OPERATOR_ACCESS_TOKEN ? "OK" : "MISSING",
       ipn_url_expected_backend: `${backendBase}/api/nowpayments/ipn`,
     },
   });
@@ -269,7 +282,7 @@ app.get("/api/status", (req, res) => {
 
 /* ================== ENDPOINTS BASE ================== */
 
-// 1) Registro real desde el frontend
+// Registro real desde el frontend
 app.post("/api/mock-payment", (req, res) => {
   const { name, emailHash, service } = req.body || {};
 
@@ -290,19 +303,16 @@ app.post("/api/mock-payment", (req, res) => {
   db.push(simRecord);
   writeDB(db);
 
-  res.json({
-    status: simRecord.result,
-    simId: simRecord.simId,
-  });
+  res.json({ status: simRecord.result, simId: simRecord.simId });
 });
 
-// 2) Logs completos
+// Logs públicos
 app.get("/api/logs", (req, res) => {
   const db = readDB();
   res.json({ count: db.length, records: db });
 });
 
-// 3) Estadísticas agregadas (usado por StatsPanel)
+// Stats públicos
 app.get("/api/stats", (req, res) => {
   const db = readDB();
 
@@ -313,20 +323,27 @@ app.get("/api/stats", (req, res) => {
   }, {});
 
   const last10 = db.slice(-10).reverse();
-
   res.json({ total, byService, last10 });
 });
 
-// 4) Export JSON
-app.get("/api/export/json", (req, res) => {
+/* ================== OPERADOR (BLOQUEO REAL) ================== */
+
+// Logs protegidos (para demo de “privacidad/seguridad”)
+app.get("/api/operator/logs", requireOperatorToken, (req, res) => {
+  const db = readDB();
+  res.json({ count: db.length, records: db });
+});
+
+// Export JSON protegido
+app.get("/api/operator/export/json", requireOperatorToken, (req, res) => {
   const db = readDB();
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Content-Disposition", 'attachment; filename="sim_data.json"');
   res.send(JSON.stringify(db, null, 2));
 });
 
-// 5) Export CSV
-app.get("/api/export/csv", (req, res) => {
+// Export CSV protegido
+app.get("/api/operator/export/csv", requireOperatorToken, (req, res) => {
   const db = readDB();
   const header = "simId,service,result,timestamp\n";
   const rows = db
@@ -342,7 +359,7 @@ app.get("/api/export/csv", (req, res) => {
   res.send(header + rows);
 });
 
-/* ================== NOWPAYMENTS (DEMO ACADÉMICA) ================== */
+/* ================== NOWPAYMENTS ================== */
 
 // Crear invoice
 app.post("/api/nowpayments/invoice", async (req, res) => {
@@ -359,18 +376,15 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
     if (!order_id || typeof order_id !== "string") {
       return safeJson(res, 400, { error: "order_id requerido" });
     }
+
     const amount = Number(price_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       return safeJson(res, 400, { error: "price_amount inválido" });
     }
 
-    // ✅ success/cancel deben ir al FRONTEND (Vercel)
-    const success_url = `${PUBLIC_BASE_URL}/api/nowpayments/ok?order_id=${encodeURIComponent(
-      order_id
-    )}`;
-    const cancel_url = `${PUBLIC_BASE_URL}/api/nowpayments/cancel?order_id=${encodeURIComponent(
-      order_id
-    )}`;
+    // success/cancel apuntan al FRONTEND (Vercel)
+    const success_url = `${PUBLIC_BASE_URL}/api/nowpayments/ok?order_id=${encodeURIComponent(order_id)}`;
+    const cancel_url = `${PUBLIC_BASE_URL}/api/nowpayments/cancel?order_id=${encodeURIComponent(order_id)}`;
 
     const payload = {
       price_amount: amount,
@@ -398,15 +412,11 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
 
     return safeJson(res, 200, {
       invoice_id: created?.id || created?.invoice_id || null,
-      invoice_url:
-        created?.invoice_url || created?.invoiceUrl || created?.payment_url || null,
+      invoice_url: created?.invoice_url || created?.invoiceUrl || created?.payment_url || null,
       raw: created,
     });
   } catch (e) {
-    return safeJson(res, 500, {
-      error: e?.message || "Error creando invoice",
-      detail: e?.detail || null,
-    });
+    return safeJson(res, 500, { error: e?.message || "Error creando invoice", detail: e?.detail || null });
   }
 });
 
@@ -420,14 +430,11 @@ app.get("/api/nowpayments/invoice/:id", async (req, res) => {
     const data = await nowpaymentsFetch(`/v1/invoice/${encodeURIComponent(id)}`, "GET");
     return safeJson(res, 200, data);
   } catch (e) {
-    return safeJson(res, 500, {
-      error: e?.message || "Error consultando invoice",
-      detail: e?.detail || null,
-    });
+    return safeJson(res, 500, { error: e?.message || "Error consultando invoice", detail: e?.detail || null });
   }
 });
 
-// IPN webhook (DEBE apuntar al BACKEND)
+// IPN webhook (apunta al BACKEND)
 app.post("/api/nowpayments/ipn", (req, res) => {
   try {
     assertNowPaymentsConfigured();
@@ -490,4 +497,5 @@ scheduleAutoGeneration();
 app.listen(PORT, () => {
   console.log(`Backend SIM corriendo en puerto ${PORT}`);
   console.log(`PUBLIC_BASE_URL (frontend): ${PUBLIC_BASE_URL || "(missing)"}`);
+  console.log(`OPERATOR_ACCESS_TOKEN: ${OPERATOR_ACCESS_TOKEN ? "OK" : "(missing)"}`);
 });
