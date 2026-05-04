@@ -30,7 +30,7 @@ const API_BACKEND =
 const API_PAYMENT = `${API_BACKEND}/api/mock-payment`;
 
 // Número de WhatsApp “de la empresa” (cámbialo tú)
-const SUPPORT_WHATSAPP = "51931321064";
+const SUPPORT_WHATSAPP = "51904284928";
 
 // LocalStorage tracking (por sesión / demo)
 const TRACKING_LS_KEY = "docsim.tracking.v1";
