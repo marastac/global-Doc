@@ -168,11 +168,11 @@ const TRACKER_STAGES = [
 // ✅ Lemon: se abre como guía (redirección a tienda según dispositivo).
 const LEMON_ANDROID_URL =
   ((import.meta as any)?.env?.VITE_LEMON_ANDROID_URL as string | undefined)?.trim?.() ||
-  "https://play.google.com/store/apps/details?id=pe.lemon.app"; // <-- ajusta si el id real difiere
+  "https://play.google.com/store/apps/details?id=com.applemoncash"; // <-- ajusta si el id real difiere
 
 const LEMON_IOS_URL =
   ((import.meta as any)?.env?.VITE_LEMON_IOS_URL as string | undefined)?.trim?.() ||
-  "https://apps.apple.com/app/lemon-cash/id1542869208"; // <-- ajusta si el link real difiere
+  "https://apps.apple.com/pe/app/lemon-tu-billetera-digital/id1499421511"; // <-- ajusta si el link real difiere
 
 const openLemon = () => {
   const ua = navigator.userAgent || "";
