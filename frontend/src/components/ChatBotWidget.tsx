@@ -165,10 +165,28 @@ const TRACKER_STAGES = [
 ];
 
 // ========= PAGO (DEMO) =========
-// ✅ Lo más estable: MoonPay se abre como guía (no embebido, evita bloqueos por iframes).
-const MOONPAY_BUY_URL =
-  (import.meta as any)?.env?.VITE_MOONPAY_BUY_URL?.trim?.() ||
-  "https://www.moonpay.com/buy";
+// ✅ Lemon: se abre como guía (redirección a tienda según dispositivo).
+const LEMON_ANDROID_URL =
+  ((import.meta as any)?.env?.VITE_LEMON_ANDROID_URL as string | undefined)?.trim?.() ||
+  "https://play.google.com/store/apps/details?id=pe.lemon.app"; // <-- ajusta si el id real difiere
+
+const LEMON_IOS_URL =
+  ((import.meta as any)?.env?.VITE_LEMON_IOS_URL as string | undefined)?.trim?.() ||
+  "https://apps.apple.com/app/lemon-cash/id1542869208"; // <-- ajusta si el link real difiere
+
+const openLemon = () => {
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+
+  const url = isIOS ? LEMON_IOS_URL : isAndroid ? LEMON_ANDROID_URL : LEMON_ANDROID_URL;
+
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch {
+    // ignore
+  }
+};
 
 export const ChatBotWidget = () => {
   const [open, setOpen] = useState(false);
@@ -623,7 +641,7 @@ export const ChatBotWidget = () => {
           simId
         )}</span>`,
         "Ahora elige cómo deseas pagar (cripto).",
-        "*MoonPay se usa para <strong>comprar cripto</strong>. El pago final se hace con <strong>NOWPayments</strong>.",
+        "*Lemon se usa para <strong>comprar cripto</strong>. El pago final se hace con <strong>NOWPayments</strong>.",
       ]);
 
       setStep("PAY_METHOD");
@@ -655,19 +673,14 @@ export const ChatBotWidget = () => {
     }
   };
 
-  const openMoonPay = () => {
-    pushUserMessage("💳 Comprar cripto con tarjeta (MoonPay)");
+  const openBuyWithLemon = () => {
+    pushUserMessage("📲 Comprar cripto desde la app (Lemon)");
     pushBotMessages([
-      "✅ Se abrirá MoonPay en una pestaña nueva.",
-      "Cuando termines de comprar tu saldo, vuelve aquí y pulsa <strong>“Ya compré, continuar al pago”</strong>.",
+      "✅ Se abrirá Lemon (descarga/tienda) en una pestaña nueva.",
+      "Cuando termines de comprar tu saldo en Lemon, vuelve aquí y pulsa <strong>“Ya compré, continuar al pago”</strong>.",
     ]);
 
-    try {
-      window.open(MOONPAY_BUY_URL, "_blank", "noopener,noreferrer");
-    } catch {
-      // ignore
-    }
-
+    openLemon();
     setStep("BUY_CRYPTO");
   };
 
@@ -738,7 +751,7 @@ export const ChatBotWidget = () => {
   const openNowPayments = () =>
     createNowPaymentsInvoiceAndOpen("🔐 Ya tengo cripto → Pagar (NOWPayments)");
 
-  const continueAfterMoonPay = () =>
+  const continueAfterLemon = () =>
     createNowPaymentsInvoiceAndOpen(
       "✅ Ya compré → Continuar al pago (NOWPayments)"
     );
@@ -1334,7 +1347,7 @@ export const ChatBotWidget = () => {
                   </div>
 
                   <div style={{ marginTop: 10, opacity: 0.88, fontSize: 13 }}>
-                    <em>MoonPay</em> se usa para <strong>comprar cripto</strong>.
+                    <em>Lemon</em> se usa para <strong>comprar cripto</strong>.
                     El pago final se hace con <strong>NOWPayments</strong>.
                   </div>
 
@@ -1373,8 +1386,8 @@ export const ChatBotWidget = () => {
                       : "🔐 Ya tengo cripto → Pagar (NOWPayments)"}
                   </button>
 
-                  <button type="button" className="chat-btn ghost" onClick={openMoonPay}>
-                    💳 No tengo cripto → Comprar con tarjeta (MoonPay)
+                  <button type="button" className="chat-btn ghost" onClick={openBuyWithLemon}>
+                    📲 No tengo cripto → Comprar en app (Lemon)
                   </button>
 
                   <button type="button" className="chat-btn ghost" onClick={openHelpWhatsApp}>
@@ -1389,7 +1402,7 @@ export const ChatBotWidget = () => {
                       <button
                         type="button"
                         className="chat-btn"
-                        onClick={continueAfterMoonPay}
+                        onClick={continueAfterLemon}
                         disabled={creatingInvoice || !lastSimId}
                       >
                         {creatingInvoice
