@@ -120,7 +120,7 @@ export const EvidenceSection = () => {
 
   const openGallery = (key?: EvidenceKey) => {
     if (key) setActiveKey(key);
-    setActiveImgIndex(0); // ✅ reset al abrir
+    setActiveImgIndex(0);
     setIsOpen(true);
   };
 
@@ -298,7 +298,6 @@ export const EvidenceSection = () => {
           {items.map((it) => (
             <div key={it.key} className="evidence-card">
               <div className={`evidence-thumb ${it.thumbClassName || ""}`.trim()}>
-                {/* ✅ CAMBIO 1 (solo visual): imagen consistente con <img> */}
                 <div
                   style={{
                     position: "absolute",
@@ -368,15 +367,64 @@ export const EvidenceSection = () => {
             padding: 16,
           }}
         >
+          {/* ✅ FIX RESPONSIVE (solo para el modal, sin tocar tu CSS global) */}
+          <style>{`
+            .evid-modal-card{
+              width:min(1040px, 100%);
+              max-height:calc(100dvh - 32px);
+              display:flex;
+              flex-direction:column;
+              overflow:hidden;
+            }
+            .evid-modal-body{
+              overflow:auto;
+              -webkit-overflow-scrolling:touch;
+              padding:14px;
+              padding-bottom:max(14px, env(safe-area-inset-bottom));
+            }
+            .evid-modal-grid{
+              display:grid;
+              grid-template-columns: 1.35fr 0.65fr;
+              gap:14px;
+            }
+
+            @media (max-width: 900px){
+              .evid-modal-grid{
+                grid-template-columns: 1fr;
+              }
+              .evid-right{
+                order:2;
+              }
+              .evid-left{
+                order:1;
+              }
+            }
+
+            @media (max-width: 640px){
+              .evid-modal-body{
+                padding:12px;
+              }
+              .evid-big{
+                min-height: 240px !important;
+                height: auto !important;
+              }
+              .evid-thumbs{
+                grid-template-columns: repeat(2, 1fr) !important;
+              }
+              .evid-cat-btn{
+                grid-template-columns: 52px 1fr !important;
+              }
+            }
+          `}</style>
+
           <div
             onClick={(e) => e.stopPropagation()}
+            className="evid-modal-card"
             style={{
-              width: "min(1040px, 100%)",
               borderRadius: 18,
               border: "1px solid rgba(255,255,255,0.16)",
               background: "rgba(10,10,10,0.78)",
               boxShadow: "0 30px 80px rgba(0,0,0,0.65)",
-              overflow: "hidden",
             }}
           >
             {/* Header */}
@@ -388,6 +436,7 @@ export const EvidenceSection = () => {
                 gap: 12,
                 padding: "14px 14px 12px",
                 borderBottom: "1px solid rgba(255,255,255,0.10)",
+                flex: "0 0 auto",
               }}
             >
               <div style={{ display: "grid", gap: 2 }}>
@@ -418,280 +467,284 @@ export const EvidenceSection = () => {
               </button>
             </div>
 
-            <div
-              className="evidence-modal-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.35fr 0.65fr",
-                gap: 14,
-                padding: 14,
-              }}
-            >
-              {/* Vista grande + navegación */}
-              <div
-                style={{
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(255,255,255,0.04)",
-                  minHeight: 340,
-                  position: "relative",
-                }}
-              >
-                {/* Flechas */}
-                <button
-                  type="button"
-                  onClick={prevImg}
-                  aria-label="Imagen anterior"
+            {/* ✅ cuerpo con scroll interno */}
+            <div className="evid-modal-body">
+              <div className="evid-modal-grid">
+                {/* Vista grande + navegación */}
+                <div
+                  className="evid-left"
                   style={{
-                    position: "absolute",
-                    left: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    zIndex: 2,
-                    width: 44,
-                    height: 44,
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(10,10,10,0.35)",
-                    color: "white",
-                    backdropFilter: "blur(8px)",
-                    cursor: "pointer",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 22,
-                  }}
-                >
-                  ‹
-                </button>
-
-                <button
-                  type="button"
-                  onClick={nextImg}
-                  aria-label="Siguiente imagen"
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    zIndex: 2,
-                    width: 44,
-                    height: 44,
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    background: "rgba(10,10,10,0.35)",
-                    color: "white",
-                    backdropFilter: "blur(8px)",
-                    cursor: "pointer",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: 22,
-                  }}
-                >
-                  ›
-                </button>
-
-                {/* ✅ CAMBIO 2: Imagen grande consistente (sin backgrounds) */}
-                <img
-                  src={bigImage.src}
-                  alt={bigImage.title}
-                  loading="lazy"
-                  style={{
-                    width: "100%",
-                    height: "100%",
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.04)",
                     minHeight: 340,
-                    display: "block",
-                    objectFit: "contain",
-                    objectPosition: "center",
-                    background: "rgba(2,6,23,0.65)",
-                    
-                  }}
-                />
-
-                {/* Caption */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    padding: "10px 12px",
-                    background: "linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0.10))",
+                    position: "relative",
                   }}
                 >
-                  <div style={{ fontWeight: 900 }}>{bigImage.title}</div>
-                  {bigImage.note ? (
-                    <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{bigImage.note}</div>
-                  ) : null}
-                </div>
-              </div>
+                  <button
+                    type="button"
+                    onClick={prevImg}
+                    aria-label="Imagen anterior"
+                    style={{
+                      position: "absolute",
+                      left: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      zIndex: 2,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 999,
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(10,10,10,0.35)",
+                      color: "white",
+                      backdropFilter: "blur(8px)",
+                      cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 22,
+                    }}
+                  >
+                    ‹
+                  </button>
 
-              {/* Panel derecho */}
-              <div style={{ display: "grid", gap: 10 }}>
-                {/* Detalle */}
-                <div
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    borderRadius: 16,
-                    background: "rgba(255,255,255,0.04)",
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontWeight: 800, marginBottom: 6 }}>Detalle</div>
-                  <div style={{ opacity: 0.86, fontSize: 13, lineHeight: 1.45 }}>{active.desc}</div>
-                </div>
+                  <button
+                    type="button"
+                    onClick={nextImg}
+                    aria-label="Siguiente imagen"
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      zIndex: 2,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 999,
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "rgba(10,10,10,0.35)",
+                      color: "white",
+                      backdropFilter: "blur(8px)",
+                      cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 22,
+                    }}
+                  >
+                    ›
+                  </button>
 
-                {/* ✅ Miniaturas (imagenes de la categoría) */}
-                <div
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    borderRadius: 16,
-                    background: "rgba(255,255,255,0.04)",
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontWeight: 800, marginBottom: 10 }}>Imágenes</div>
+                  <img
+                    className="evid-big"
+                    src={bigImage.src}
+                    alt={bigImage.title}
+                    loading="lazy"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      minHeight: 340,
+                      display: "block",
+                      objectFit: "contain",
+                      objectPosition: "center",
+                      background: "rgba(2,6,23,0.65)",
+                    }}
+                  />
 
                   <div
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
-                      gap: 10,
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      padding: "10px 12px",
+                      background:
+                        "linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0.10))",
                     }}
                   >
-                    {activeImages.map((img, idx) => {
-                      const selected = idx === safeIndex;
-                      return (
-                        <button
-                          key={img.src + idx}
-                          type="button"
-                          onClick={() => setActiveImgIndex(idx)}
-                          aria-label={`Ver ${img.title}`}
-                          title={img.title}
-                          style={{
-                            borderRadius: 14,
-                            border: selected
-                              ? "1px solid rgba(56,189,248,0.85)"
-                              : "1px solid rgba(255,255,255,0.12)",
-                            background: selected ? "rgba(56,189,248,0.10)" : "rgba(255,255,255,0.03)",
-                            padding: 6,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {/* ✅ CAMBIO 3: miniatura consistente */}
-                          <div
-                            style={{
-                              width: "100%",
-                              aspectRatio: "16/10",
-                              borderRadius: 10,
-                              overflow: "hidden",
-                              border: "1px solid rgba(255,255,255,0.10)",
-                              background: "rgba(255,255,255,0.03)",
-                            }}
-                          >
-                            <img
-                              src={img.src}
-                              alt={img.title}
-                              loading="lazy"
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                display: "block",
-                                objectFit: "cover",
-                                objectPosition: "center",
-                              }}
-                            />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div style={{ fontSize: 12, opacity: 0.75, marginTop: 10 }}>
-                    Tip: usa <strong>←</strong> / <strong>→</strong> para navegar y <strong>ESC</strong> para cerrar.
+                    <div style={{ fontWeight: 900 }}>{bigImage.title}</div>
+                    {bigImage.note ? (
+                      <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+                        {bigImage.note}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
-                {/* Categorías */}
-                <div
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    borderRadius: 16,
-                    background: "rgba(255,255,255,0.04)",
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontWeight: 800, marginBottom: 10 }}>Categorías</div>
+                {/* Panel derecho */}
+                <div className="evid-right" style={{ display: "grid", gap: 10 }}>
+                  {/* Detalle */}
+                  <div
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: 16,
+                      background: "rgba(255,255,255,0.04)",
+                      padding: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 6 }}>Detalle</div>
+                    <div style={{ opacity: 0.86, fontSize: 13, lineHeight: 1.45 }}>
+                      {active.desc}
+                    </div>
+                  </div>
 
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {items.map((it) => {
-                      const selected = it.key === active.key;
-                      return (
-                        <button
-                          key={it.key}
-                          type="button"
-                          onClick={() => setActiveKey(it.key)}
-                          style={{
-                            textAlign: "left",
-                            display: "grid",
-                            gridTemplateColumns: "52px 1fr",
-                            gap: 10,
-                            alignItems: "center",
-                            borderRadius: 14,
-                            padding: 10,
-                            border: selected
-                              ? "1px solid rgba(56,189,248,0.75)"
-                              : "1px solid rgba(255,255,255,0.10)",
-                            background: selected ? "rgba(56,189,248,0.10)" : "rgba(255,255,255,0.03)",
-                            color: "white",
-                            cursor: "pointer",
-                          }}
-                          aria-label={`Abrir ${it.cardTitle}`}
-                        >
-                          {/* ✅ CAMBIO 4: preview categoría consistente */}
-                          <div
+                  {/* Miniaturas */}
+                  <div
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: 16,
+                      background: "rgba(255,255,255,0.04)",
+                      padding: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 10 }}>Imágenes</div>
+
+                    <div
+                      className="evid-thumbs"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: 10,
+                      }}
+                    >
+                      {activeImages.map((img, idx) => {
+                        const selected = idx === safeIndex;
+                        return (
+                          <button
+                            key={img.src + idx}
+                            type="button"
+                            onClick={() => setActiveImgIndex(idx)}
+                            aria-label={`Ver ${img.title}`}
+                            title={img.title}
                             style={{
-                              width: 52,
-                              height: 38,
-                              borderRadius: 10,
-                              overflow: "hidden",
-                              border: "1px solid rgba(255,255,255,0.10)",
-                              background: "rgba(255,255,255,0.03)",
+                              borderRadius: 14,
+                              border: selected
+                                ? "1px solid rgba(56,189,248,0.85)"
+                                : "1px solid rgba(255,255,255,0.12)",
+                              background: selected
+                                ? "rgba(56,189,248,0.10)"
+                                : "rgba(255,255,255,0.03)",
+                              padding: 6,
+                              cursor: "pointer",
                             }}
                           >
-                            <img
-                              src={it.imageUrl}
-                              alt={it.cardTitle}
-                              loading="lazy"
+                            <div
                               style={{
                                 width: "100%",
-                                height: "100%",
-                                display: "block",
-                                objectFit: "cover",
-                                objectPosition: "center",
+                                aspectRatio: "16/10",
+                                borderRadius: 10,
+                                overflow: "hidden",
+                                border: "1px solid rgba(255,255,255,0.10)",
+                                background: "rgba(255,255,255,0.03)",
                               }}
-                            />
-                          </div>
+                            >
+                              <img
+                                src={img.src}
+                                alt={img.title}
+                                loading="lazy"
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  display: "block",
+                                  objectFit: "cover",
+                                  objectPosition: "center",
+                                }}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                          <div style={{ display: "grid", gap: 2 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13 }}>{it.cardTitle}</div>
-                            <div style={{ opacity: 0.75, fontSize: 12 }}>{it.footer}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 10 }}>
+                      Tip: usa <strong>←</strong> / <strong>→</strong> para navegar y{" "}
+                      <strong>ESC</strong> para cerrar.
+                    </div>
                   </div>
-                </div>
 
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                  <button type="button" className="btn-outline" onClick={closeGallery}>
-                    Cerrar
-                  </button>
+                  {/* Categorías */}
+                  <div
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: 16,
+                      background: "rgba(255,255,255,0.04)",
+                      padding: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 10 }}>Categorías</div>
+
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {items.map((it) => {
+                        const selected = it.key === active.key;
+                        return (
+                          <button
+                            key={it.key}
+                            type="button"
+                            onClick={() => setActiveKey(it.key)}
+                            className="evid-cat-btn"
+                            style={{
+                              textAlign: "left",
+                              display: "grid",
+                              gridTemplateColumns: "52px 1fr",
+                              gap: 10,
+                              alignItems: "center",
+                              borderRadius: 14,
+                              padding: 10,
+                              border: selected
+                                ? "1px solid rgba(56,189,248,0.75)"
+                                : "1px solid rgba(255,255,255,0.10)",
+                              background: selected
+                                ? "rgba(56,189,248,0.10)"
+                                : "rgba(255,255,255,0.03)",
+                              color: "white",
+                              cursor: "pointer",
+                            }}
+                            aria-label={`Abrir ${it.cardTitle}`}
+                          >
+                            <div
+                              style={{
+                                width: 52,
+                                height: 38,
+                                borderRadius: 10,
+                                overflow: "hidden",
+                                border: "1px solid rgba(255,255,255,0.10)",
+                                background: "rgba(255,255,255,0.03)",
+                              }}
+                            >
+                              <img
+                                src={it.imageUrl}
+                                alt={it.cardTitle}
+                                loading="lazy"
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  display: "block",
+                                  objectFit: "cover",
+                                  objectPosition: "center",
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ display: "grid", gap: 2 }}>
+                              <div style={{ fontWeight: 800, fontSize: 13 }}>
+                                {it.cardTitle}
+                              </div>
+                              <div style={{ opacity: 0.75, fontSize: 12 }}>{it.footer}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button type="button" className="btn-outline" onClick={closeGallery}>
+                      Cerrar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* ✅ Responsive del modal en móvil (sin romper tu CSS global) */}
             <div style={{ padding: 0 }} />
           </div>
         </div>
