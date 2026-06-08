@@ -1,7 +1,6 @@
 {
-  "rewrites": [
-    { "source": "/media/(.*)", "destination": "/media/$1" },
-    { "source": "/assets/(.*)", "destination": "/assets/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

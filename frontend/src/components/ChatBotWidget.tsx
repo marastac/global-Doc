@@ -38,8 +38,8 @@ const TRACKING_LS_KEY = "docsim.tracking.v1";
 // Coachmark (guía visual) - se muestra 1 vez
 const COACHMARK_KEY = "docsim.coachmark.dismissed.v1";
 
-// ✅ Tutorial (video)
-const TUTORIAL_LS_KEY = "docsim.tutorial.dismissed.v1";
+// ✅ Tutorial (video) — se abre en otra pestaña (no modal)
+const TUTORIAL_LS_KEY = "docsim.tutorial.opened.v1";
 const TUTORIAL_VIDEO_SRC =
   ((import.meta as any)?.env?.VITE_TUTORIAL_VIDEO_SRC as string | undefined)
     ?.trim?.() || "/media/tutorial.mp4";
@@ -167,12 +167,12 @@ const TRACKER_STAGES = [
 // ========= PAGO (DEMO) =========
 // ✅ Lemon: se abre como guía (redirección a tienda según dispositivo).
 const LEMON_ANDROID_URL =
-  ((import.meta as any)?.env?.VITE_LEMON_ANDROID_URL as string | undefined)?.trim?.() ||
-  "https://play.google.com/store/apps/details?id=com.applemoncash"; // <-- ajusta si el id real difiere
+  ((import.meta as any)?.env?.VITE_LEMON_ANDROID_URL as string | undefined)
+    ?.trim?.() || "https://play.google.com/store/apps/details?id=com.applemoncash";
 
 const LEMON_IOS_URL =
-  ((import.meta as any)?.env?.VITE_LEMON_IOS_URL as string | undefined)?.trim?.() ||
-  "https://apps.apple.com/pe/app/lemon-tu-billetera-digital/id1499421511"; // <-- ajusta si el link real difiere
+  ((import.meta as any)?.env?.VITE_LEMON_IOS_URL as string | undefined)
+    ?.trim?.() || "https://apps.apple.com/pe/app/lemon-tu-billetera-digital/id1499421511";
 
 const openLemon = () => {
   const ua = navigator.userAgent || "";
@@ -205,13 +205,11 @@ export const ChatBotWidget = () => {
 
   const [botTyping, setBotTyping] = useState(false);
 
-  // ✅ Coachmark (guía visual) - NO tapa el botón y se muestra 1 vez
+  // ✅ Coachmark - 1 vez
   const [showCoachmark, setShowCoachmark] = useState(false);
 
-  // ✅ Tutorial modal
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [dontShowTutorialAgain, setDontShowTutorialAgain] = useState(true);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // ✅ Tutorial obligatorio (control)
+  const [tutorialOpened, setTutorialOpened] = useState(false);
 
   useEffect(() => {
     try {
@@ -236,60 +234,38 @@ export const ChatBotWidget = () => {
     setOpen(true);
   };
 
-  // ✅ Si el chat se abre, abre tutorial (si no está deshabilitado)
+  // ✅ Si se abre el chat: cargar estado del tutorial (si ya lo abrieron antes)
   useEffect(() => {
     if (!open) return;
 
-    // oculta coachmark si se abrió chat
     dismissCoachmark();
 
-    // tutorial solo si no fue deshabilitado
     try {
-      const dismissedTutorial = localStorage.getItem(TUTORIAL_LS_KEY);
-      if (dismissedTutorial !== "1") {
-        setShowTutorial(true);
-      }
+      const v = localStorage.getItem(TUTORIAL_LS_KEY);
+      setTutorialOpened(v === "1");
     } catch {
-      setShowTutorial(true);
+      setTutorialOpened(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ✅ Cuando aparece el tutorial: intenta autoplay (iOS puede bloquear, pero con muted suele ir)
-  useEffect(() => {
-    if (!showTutorial) return;
-    const v = videoRef.current;
-    if (!v) return;
+  // ✅ Abrir tutorial en otra pestaña y marcar como "abierto"
+const openTutorialManual = () => {
+  const base = (import.meta as any)?.env?.BASE_URL || "/";
+  const src = (TUTORIAL_VIDEO_SRC || "media/tutorial.mp4").replace(/^\//, "");
+  const url = new URL(base + src, window.location.origin).toString();
 
-    // reset a inicio
-    try {
-      v.currentTime = 0;
-    } catch {}
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch {
+    window.location.href = url;
+  }
 
-    // intenta autoplay
-    const tryPlay = async () => {
-      try {
-        await v.play();
-      } catch {
-        // si iOS bloquea, controles permiten iniciar manual
-      }
-    };
-    tryPlay();
-  }, [showTutorial]);
-
-  const closeTutorial = (persist?: boolean) => {
-    setShowTutorial(false);
-
-    if (persist) {
-      try {
-        localStorage.setItem(TUTORIAL_LS_KEY, "1");
-      } catch {}
-    }
-  };
-
-  const openTutorialManual = () => {
-    setShowTutorial(true);
-  };
+  setTutorialOpened(true);
+  try {
+    localStorage.setItem(TUTORIAL_LS_KEY, "1");
+  } catch {}
+};
 
   // ========= DATOS =========
   const [fullName, setFullName] = useState("");
@@ -299,28 +275,22 @@ export const ChatBotWidget = () => {
   const [service, setService] = useState<string | null>(null);
   const [priority, setPriority] = useState<PriorityKey | null>(null);
 
-  // ✅ inicia con "+"
   const [phoneInput, setPhoneInput] = useState("+");
   const [phone, setPhone] = useState<string | null>(null);
 
-  // Orden simulada
   const [processingSale, setProcessingSale] = useState(false);
   const [lastSimId, setLastSimId] = useState<string | null>(null);
 
-  // Control WA (para obligar click antes de finalizar)
   const [waClicked, setWaClicked] = useState(false);
 
-  // Tracking: mapa por ID (persistente)
   const [trackingMap, setTrackingMap] = useState<Record<string, number>>(() =>
     readTrackingMap()
   );
   const [trackerOpen, setTrackerOpen] = useState(false);
   const [activeSimId, setActiveSimId] = useState<string | null>(null);
 
-  // Lookup de tracking por código
   const [trackCodeInput, setTrackCodeInput] = useState("");
 
-  // Operador (panel privado oculto)
   const [operatorOpen, setOperatorOpen] = useState(false);
   const [operatorSelected, setOperatorSelected] = useState<string | null>(null);
 
@@ -369,13 +339,11 @@ export const ChatBotWidget = () => {
       }
       if (key === "escape") {
         setOperatorOpen(false);
-        if (showTutorial) closeTutorial(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showTutorial]);
+  }, []);
 
   const pushUserMessage = (text: string) => {
     setMessages((m) => [...m, { id: uid(), from: "user", text }]);
@@ -437,6 +405,8 @@ export const ChatBotWidget = () => {
         text: "🔄 Reiniciado.\nPulsa <strong>Iniciar solicitud</strong> para comenzar.",
       },
     ]);
+
+    // no tocamos tutorialOpened, para no molestar al usuario si ya lo abrió
   };
 
   const handleStart = () => {
@@ -462,9 +432,7 @@ export const ChatBotWidget = () => {
       return;
     }
     if (!isValidDNI(d)) {
-      pushBotMessages([
-        "⚠️ DNI inválido. Debe tener mínimo <strong>8 dígitos</strong>.",
-      ]);
+      pushBotMessages(["⚠️ DNI inválido. Debe tener mínimo <strong>8 dígitos</strong>."]);
       return;
     }
 
@@ -480,9 +448,7 @@ export const ChatBotWidget = () => {
 
   const handleServiceSelect = (s: string) => {
     setService(s);
-    pushUserMessage(
-      `${serviceLabel(s)} — USD ${servicePrice(s).toLocaleString()}`
-    );
+    pushUserMessage(`${serviceLabel(s)} — USD ${servicePrice(s).toLocaleString()}`);
     pushBotMessages([
       "Perfecto. Ahora elige la prioridad.",
       "📌 <strong>Prioridad Alta</strong>: 24–72h y recargo <strong>+30%</strong>.\n📌 <strong>Prioridad Media</strong>: 7–12 días sin recargo.",
@@ -497,10 +463,7 @@ export const ChatBotWidget = () => {
     goStep("SUMMARY");
   };
 
-  const basePrice = useMemo(
-    () => (service ? servicePrice(service) : 0),
-    [service]
-  );
+  const basePrice = useMemo(() => (service ? servicePrice(service) : 0), [service]);
 
   const finalPrice = useMemo(() => {
     if (!service || !priority) return 0;
@@ -510,9 +473,7 @@ export const ChatBotWidget = () => {
   const summaryLines = useMemo(() => {
     const s = service ? serviceLabel(service) : "—";
     const p = service ? `USD ${basePrice.toLocaleString()}` : "—";
-    const pr = priority
-      ? `${priorityLabel(priority)} (${priorityETA(priority)})`
-      : "—";
+    const pr = priority ? `${priorityLabel(priority)} (${priorityETA(priority)})` : "—";
     const mult = priority === "alta" ? "+30%" : "—";
     const fp = service && priority ? `USD ${finalPrice.toLocaleString()}` : "—";
 
@@ -526,8 +487,6 @@ export const ChatBotWidget = () => {
       `• <strong>Total estimado</strong>: ${fp}`,
     ];
   }, [service, basePrice, priority, finalPrice, fullName, dni, country]);
-
-  // ✅ Pide WhatsApp y prellena el prefijo por país
   const handleAskPhone = () => {
     pushUserMessage("Continuar");
     pushBotMessages([
@@ -557,10 +516,7 @@ export const ChatBotWidget = () => {
 
     const cleaned = phoneInput.trim();
     setPhone(cleaned);
-    pushBotMessages([
-      `Perfecto. Registrado: <strong>${cleaned}</strong>`,
-      "Último paso: generar orden.",
-    ]);
+    pushBotMessages([`Perfecto. Registrado: <strong>${cleaned}</strong>`, "Último paso: generar orden."]);
     goStep("CONFIRM");
   };
 
@@ -572,12 +528,8 @@ export const ChatBotWidget = () => {
         `• Nombre: ${fullName}`,
         `• País: ${country}`,
         `• Servicio: ${service ? serviceLabel(service) : "—"}`,
-        `• Prioridad: ${
-          priority ? `${priorityLabel(priority)} (${priorityETA(priority)})` : "—"
-        }`,
-        `• Total estimado: ${
-          service && priority ? `USD ${finalPrice.toLocaleString()}` : "—"
-        }`,
+        `• Prioridad: ${priority ? `${priorityLabel(priority)} (${priorityETA(priority)})` : "—"}`,
+        `• Total estimado: ${service && priority ? `USD ${finalPrice.toLocaleString()}` : "—"}`,
         `• WhatsApp: ${phone || "—"}`,
       ].join("\n")
     );
@@ -585,7 +537,6 @@ export const ChatBotWidget = () => {
     return `https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`;
   };
 
-  // Tracking UI (usuario)
   const trackerStep = useMemo(() => {
     if (!activeSimId) return 0;
     const v = trackingMap[activeSimId];
@@ -598,7 +549,6 @@ export const ChatBotWidget = () => {
     return Math.max(0, Math.min(100, p));
   }, [trackerStep]);
 
-  // ✅ Genera la orden (demo backend existente) y luego pasa al checkout cripto
   const handleSimulatedSale = async () => {
     if (!service) return;
 
@@ -622,7 +572,6 @@ export const ChatBotWidget = () => {
       setLastSimId(simId);
       setWaClicked(false);
 
-      // reset invoice
       setInvoiceUrl(null);
       setInvoiceId(null);
 
@@ -637,27 +586,20 @@ export const ChatBotWidget = () => {
       setTrackerOpen(true);
 
       pushBotMessages([
-        `✅ Orden creada.\nID: <span class="id-mono">${publicCodeFromSimId(
-          simId
-        )}</span>`,
+        `✅ Orden creada.\nID: <span class="id-mono">${publicCodeFromSimId(simId)}</span>`,
         "Ahora elige cómo deseas pagar (cripto).",
         "*Lemon se usa para <strong>comprar cripto</strong>. El pago final se hace con <strong>NOWPayments</strong>.",
       ]);
 
       setStep("PAY_METHOD");
     } catch (e: any) {
-      pushBotMessages([
-        `⚠️ No se pudo generar la orden: <strong>${String(
-          e?.message || e
-        )}</strong>`,
-      ]);
+      pushBotMessages([`⚠️ No se pudo generar la orden: <strong>${String(e?.message || e)}</strong>`]);
       setStep("DONE");
     } finally {
       setProcessingSale(false);
     }
   };
 
-  // ========= CHECKOUT CRIPTO =========
   const waHelpLink = useMemo(
     () => buildSupportWhatsAppLink(lastSimId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -686,9 +628,7 @@ export const ChatBotWidget = () => {
 
   const createNowPaymentsInvoiceAndOpen = async (originLabel: string) => {
     if (!service || !priority || !lastSimId) {
-      pushBotMessages([
-        "⚠️ Falta información para crear el pago. Reinicia y vuelve a intentar.",
-      ]);
+      pushBotMessages(["⚠️ Falta información para crear el pago. Reinicia y vuelve a intentar."]);
       return;
     }
 
@@ -705,18 +645,14 @@ export const ChatBotWidget = () => {
           order_id: orderId,
           price_amount: finalPrice,
           price_currency: "usd",
-          order_description: `${serviceLabel(service)} (${priorityLabel(
-            priority
-          )}) - Demo`,
+          order_description: `${serviceLabel(service)} (${priorityLabel(priority)}) - Demo`,
         }),
       });
 
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "No se pudo crear la invoice");
 
-      const url: string | null =
-        data?.invoice_url || data?.invoiceUrl || data?.payment_url || null;
-
+      const url: string | null = data?.invoice_url || data?.invoiceUrl || data?.payment_url || null;
       const id: string | null = data?.invoice_id || data?.id || null;
 
       if (!url) throw new Error("NOWPayments no devolvió invoice_url");
@@ -738,23 +674,14 @@ export const ChatBotWidget = () => {
 
       setStep("PAY_CRYPTO");
     } catch (e: any) {
-      pushBotMessages([
-        `⚠️ Error creando invoice: <strong>${String(
-          e?.message || e
-        )}</strong>`,
-      ]);
+      pushBotMessages([`⚠️ Error creando invoice: <strong>${String(e?.message || e)}</strong>`]);
     } finally {
       setCreatingInvoice(false);
     }
   };
 
-  const openNowPayments = () =>
-    createNowPaymentsInvoiceAndOpen("🔐 Ya tengo cripto → Pagar (NOWPayments)");
-
-  const continueAfterLemon = () =>
-    createNowPaymentsInvoiceAndOpen(
-      "✅ Ya compré → Continuar al pago (NOWPayments)"
-    );
+  const openNowPayments = () => createNowPaymentsInvoiceAndOpen("🔐 Ya tengo cripto → Pagar (NOWPayments)");
+  const continueAfterLemon = () => createNowPaymentsInvoiceAndOpen("✅ Ya compré → Continuar al pago (NOWPayments)");
 
   const finishPayment = () => {
     pushUserMessage("Continuar");
@@ -778,16 +705,12 @@ export const ChatBotWidget = () => {
     }
 
     setWaClicked(true);
-    pushBotMessages([
-      "✅ Listo. Cuando termines de coordinar, pulsa <strong>Continuar</strong>.",
-    ]);
+    pushBotMessages(["✅ Listo. Cuando termines de coordinar, pulsa <strong>Continuar</strong>."]);
   };
 
   const finishAfterWhatsApp = () => {
     pushUserMessage("Continuar");
-    pushBotMessages([
-      "Perfecto. Flujo completado. Puedes reiniciar cuando quieras.",
-    ]);
+    pushBotMessages(["Perfecto. Flujo completado. Puedes reiniciar cuando quieras."]);
     setStep("DONE");
   };
 
@@ -796,18 +719,9 @@ export const ChatBotWidget = () => {
       q: "¿Qué significa Prioridad Alta?",
       a: "Atención prioritaria con tiempo estimado de 24–72 horas. Incluye recargo +30% sobre el precio base.",
     },
-    {
-      q: "¿Qué significa Prioridad Media?",
-      a: "Flujo estándar con tiempo estimado de 7–12 días, sin recargo.",
-    },
-    {
-      q: "¿Cómo veo el estado del trámite?",
-      a: "Usa “📍 Ver el proceso” y escribe tu código (S-...).",
-    },
-    {
-      q: "¿Puedo volver al inicio?",
-      a: "Sí: usa 🏠 Inicio en cualquier momento.",
-    },
+    { q: "¿Qué significa Prioridad Media?", a: "Flujo estándar con tiempo estimado de 7–12 días, sin recargo." },
+    { q: "¿Cómo veo el estado del trámite?", a: "Usa “📍 Ver el proceso” y escribe tu código (S-...)." },
+    { q: "¿Puedo volver al inicio?", a: "Sí: usa 🏠 Inicio en cualquier momento." },
   ];
 
   const canContinueID = useMemo(() => {
@@ -820,7 +734,6 @@ export const ChatBotWidget = () => {
     if (e.key === "Enter") fn();
   };
 
-  // Tracking lookup
   const handleOpenTrackingLookup = () => {
     pushUserMessage("📍 Ver el proceso de mi documento");
     pushBotMessages([
@@ -855,15 +768,10 @@ export const ChatBotWidget = () => {
     setActiveSimId(simId);
     setTrackerOpen(true);
 
-    pushBotMessages([
-      `📍 Mostrando tracking para: <span class="id-mono">${publicCodeFromSimId(
-        simId
-      )}</span>`,
-    ]);
+    pushBotMessages([`📍 Mostrando tracking para: <span class="id-mono">${publicCodeFromSimId(simId)}</span>`]);
     setStep("DONE");
   };
 
-  // Operador (privado)
   const operatorCodes = useMemo(() => {
     const keys = Object.keys(trackingMap || {});
     return keys.sort((a, b) => (a < b ? 1 : -1));
@@ -881,48 +789,26 @@ export const ChatBotWidget = () => {
 
   const operatorReset = (simId: string) => operatorSetStage(simId, 0);
 
-  // ========= UI =========
   return (
     <div className="chat-widget">
       {!open && (
         <>
           {showCoachmark && (
-            <div
-              className="chat-coachmark"
-              role="dialog"
-              aria-label="Guía para iniciar solicitud"
-            >
-              <button
-                type="button"
-                className="chat-coachmark-x"
-                onClick={dismissCoachmark}
-                aria-label="Cerrar"
-                title="Cerrar"
-              >
+            <div className="chat-coachmark" role="dialog" aria-label="Guía para iniciar solicitud">
+              <button type="button" className="chat-coachmark-x" onClick={dismissCoachmark} aria-label="Cerrar" title="Cerrar">
                 ✕
               </button>
 
-              <div className="chat-coachmark-title">
-                👉 Aquí puedes solicitar tu trámite
-              </div>
+              <div className="chat-coachmark-title">👉 Aquí puedes solicitar tu trámite</div>
               <div className="chat-coachmark-text">
-                Haz clic en <strong>Asesor IA</strong> para iniciar tu solicitud
-                automática.
+                Haz clic en <strong>Asesor IA</strong> para iniciar tu solicitud automática.
               </div>
 
               <div className="chat-coachmark-actions">
-                <button
-                  type="button"
-                  className="chat-coachmark-btn"
-                  onClick={openFromCoachmark}
-                >
+                <button type="button" className="chat-coachmark-btn" onClick={openFromCoachmark}>
                   Iniciar ahora
                 </button>
-                <button
-                  type="button"
-                  className="chat-coachmark-btn ghost"
-                  onClick={dismissCoachmark}
-                >
+                <button type="button" className="chat-coachmark-btn ghost" onClick={dismissCoachmark}>
                   Entendido
                 </button>
               </div>
@@ -931,17 +817,9 @@ export const ChatBotWidget = () => {
             </div>
           )}
 
-          <button
-            className="chat-toggle chat-toggle-pro"
-            type="button"
-            onClick={() => setOpen(true)}
-          >
+          <button className="chat-toggle chat-toggle-pro" type="button" onClick={() => setOpen(true)}>
             <span className="chat-avatar" aria-hidden="true">
-              <svg
-                viewBox="0 0 64 64"
-                className="chat-avatar-svg chat-avatar-anim"
-                aria-hidden="true"
-              >
+              <svg viewBox="0 0 64 64" className="chat-avatar-svg chat-avatar-anim" aria-hidden="true">
                 <defs>
                   <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0" stopColor="#0ea5e9" />
@@ -949,47 +827,11 @@ export const ChatBotWidget = () => {
                   </linearGradient>
                 </defs>
                 <circle cx="32" cy="32" r="28" fill="url(#g1)" opacity="0.18" />
-                <rect
-                  x="16"
-                  y="18"
-                  width="32"
-                  height="28"
-                  rx="10"
-                  fill="url(#g1)"
-                />
-                <circle
-                  cx="26"
-                  cy="32"
-                  r="4"
-                  className="bot-eye"
-                  fill="#020617"
-                  opacity="0.92"
-                />
-                <circle
-                  cx="38"
-                  cy="32"
-                  r="4"
-                  className="bot-eye"
-                  fill="#020617"
-                  opacity="0.92"
-                />
-                <rect
-                  x="26"
-                  y="40"
-                  width="12"
-                  height="3"
-                  rx="2"
-                  fill="#020617"
-                  opacity="0.9"
-                />
-                <rect
-                  x="29"
-                  y="12"
-                  width="6"
-                  height="6"
-                  rx="2"
-                  fill="url(#g1)"
-                />
+                <rect x="16" y="18" width="32" height="28" rx="10" fill="url(#g1)" />
+                <circle cx="26" cy="32" r="4" className="bot-eye" fill="#020617" opacity="0.92" />
+                <circle cx="38" cy="32" r="4" className="bot-eye" fill="#020617" opacity="0.92" />
+                <rect x="26" y="40" width="12" height="3" rx="2" fill="#020617" opacity="0.9" />
+                <rect x="29" y="12" width="6" height="6" rx="2" fill="url(#g1)" />
               </svg>
             </span>
 
@@ -997,9 +839,7 @@ export const ChatBotWidget = () => {
               <span className="chat-toggle-title">
                 Asesor IA <span className="chat-cta-hint">Haz clic para iniciar</span>
               </span>
-              <span className="chat-toggle-sub chat-toggle-sub-strong">
-                Solicitud 100% automática · 1 conversación
-              </span>
+              <span className="chat-toggle-sub chat-toggle-sub-strong">Solicitud 100% automática · 1 conversación</span>
             </span>
 
             <span className="chat-toggle-badge chat-toggle-badge-pro">
@@ -1020,159 +860,10 @@ export const ChatBotWidget = () => {
             maxHeight: 760,
           }}
         >
-          {/* ✅ TUTORIAL MODAL (superpuesto sobre el chat) */}
-          {showTutorial && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="Tutorial de uso"
-              onClick={() => closeTutorial(false)}
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 9999,
-                background: "rgba(0,0,0,0.62)",
-                backdropFilter: "blur(10px)",
-                display: "grid",
-                placeItems: "center",
-                padding: 14,
-              }}
-            >
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: "min(420px, 96vw)",
-                  borderRadius: 18,
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  background: "rgba(10,10,10,0.78)",
-                  boxShadow: "0 30px 80px rgba(0,0,0,0.65)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "12px 12px 10px",
-                    borderBottom: "1px solid rgba(255,255,255,0.10)",
-                  }}
-                >
-                  <div style={{ display: "grid", gap: 2 }}>
-                    <div style={{ fontWeight: 900, letterSpacing: 0.2 }}>
-                      🎥 Tutorial rápido
-                    </div>
-                    <div style={{ opacity: 0.8, fontSize: 12 }}>
-                      Mira esto 15–30s y luego usa el chat abajo.
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => closeTutorial(false)}
-                    aria-label="Cerrar tutorial"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 12,
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      background: "rgba(255,255,255,0.06)",
-                      color: "white",
-                      cursor: "pointer",
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: 18,
-                    }}
-                    title="Cerrar"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div style={{ padding: 12 }}>
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "9 / 16",
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background: "rgba(2,6,23,0.65)",
-                      maxHeight: "68vh",
-                    }}
-                  >
-                    <video
-                      ref={videoRef}
-                      src={TUTORIAL_VIDEO_SRC}
-                      muted
-                      playsInline
-                      autoPlay
-                      controls
-                      preload="metadata"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        display: "block",
-                        objectFit: "cover",
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ marginTop: 10, opacity: 0.86, fontSize: 13, lineHeight: 1.35 }}>
-                    Tip: si el video no inicia solo en iPhone, toca <strong>Play</strong>. (Es normal por políticas del navegador.)
-                  </div>
-
-                  <label
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "center",
-                      marginTop: 10,
-                      fontSize: 13,
-                      opacity: 0.9,
-                      userSelect: "none",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={dontShowTutorialAgain}
-                      onChange={(e) => setDontShowTutorialAgain(e.target.checked)}
-                    />
-                    No volver a mostrar automáticamente
-                  </label>
-
-                  <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="chat-btn ghost"
-                      onClick={() => closeTutorial(dontShowTutorialAgain)}
-                      style={{ flex: "1 1 160px" }}
-                    >
-                      Saltar tutorial
-                    </button>
-                    <button
-                      type="button"
-                      className="chat-btn"
-                      onClick={() => closeTutorial(dontShowTutorialAgain)}
-                      style={{ flex: "1 1 160px" }}
-                    >
-                      ✅ Listo, abrir chat
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="chat-header chat-header-pro">
             <div className="chat-header-left">
               <span className="chat-avatar small" aria-hidden="true">
-                <svg
-                  viewBox="0 0 64 64"
-                  className="chat-avatar-svg chat-avatar-anim"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 64 64" className="chat-avatar-svg chat-avatar-anim" aria-hidden="true">
                   <defs>
                     <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0" stopColor="#0ea5e9" />
@@ -1180,92 +871,71 @@ export const ChatBotWidget = () => {
                     </linearGradient>
                   </defs>
                   <circle cx="32" cy="32" r="28" fill="url(#g2)" opacity="0.16" />
-                  <rect
-                    x="16"
-                    y="18"
-                    width="32"
-                    height="28"
-                    rx="10"
-                    fill="url(#g2)"
-                  />
-                  <circle
-                    cx="26"
-                    cy="32"
-                    r="4"
-                    className="bot-eye"
-                    fill="#020617"
-                    opacity="0.92"
-                  />
-                  <circle
-                    cx="38"
-                    cy="32"
-                    r="4"
-                    className="bot-eye"
-                    fill="#020617"
-                    opacity="0.92"
-                  />
-                  <rect
-                    x="26"
-                    y="40"
-                    width="12"
-                    height="3"
-                    rx="2"
-                    fill="#020617"
-                    opacity="0.9"
-                  />
+                  <rect x="16" y="18" width="32" height="28" rx="10" fill="url(#g2)" />
+                  <circle cx="26" cy="32" r="4" className="bot-eye" fill="#020617" opacity="0.92" />
+                  <circle cx="38" cy="32" r="4" className="bot-eye" fill="#020617" opacity="0.92" />
+                  <rect x="26" y="40" width="12" height="3" rx="2" fill="#020617" opacity="0.9" />
                 </svg>
               </span>
 
               <div>
                 <div className="chat-title">
-                  Asesor IA{" "}
-                  <span className="status-pill">
-                    {processingSale ? "Procesando" : "Online"}
-                  </span>
+                  Asesor IA <span className="status-pill">{processingSale ? "Procesando" : "Online"}</span>
                 </div>
-                <div className="chat-subtitle">
-                  Flujo automático · sin intervención humana
-                </div>
+                <div className="chat-subtitle">Flujo automático · sin intervención humana</div>
               </div>
             </div>
 
             <div className="chat-header-actions">
-              <button
-                className="chat-mini"
-                type="button"
-                onClick={resetAll}
-                title="Reiniciar"
-              >
+              <button className="chat-mini" type="button" onClick={resetAll} title="Reiniciar">
                 ↺
               </button>
-              <button
-                className="chat-close"
-                type="button"
-                onClick={() => setOpen(false)}
-                title="Cerrar"
-              >
+              <button className="chat-close" type="button" onClick={() => setOpen(false)} title="Cerrar">
                 ✕
               </button>
             </div>
           </div>
 
           <div className="chat-body" ref={chatBodyRef} style={{ minHeight: 0 }}>
-            {messages.map((msg) => (
+            {/* ✅ ALERTA OBLIGATORIA (solo al inicio) */}
+            {step === "INTRO" && !tutorialOpened && (
               <div
-                key={msg.id}
-                className={
-                  "chat-message " +
-                  (msg.from === "bot" ? "chat-bot" : "chat-user")
-                }
+                className="chat-inline-card"
+                style={{
+                  marginBottom: 10,
+                  border: "1px solid rgba(245, 158, 11, 0.35)",
+                  background: "linear-gradient(180deg, rgba(245, 158, 11, 0.10), rgba(255,255,255,0.03))",
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+                }}
               >
+                <div className="chat-inline-title" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <span aria-hidden="true">⚠️</span>
+                  <span>
+                    <strong>Antes de iniciar:</strong> mira el tutorial <span style={{ opacity: 0.9 }}>(obligatorio)</span>
+                  </span>
+                </div>
+
+                <div className="chat-inline-text" style={{ opacity: 0.92, lineHeight: 1.45, marginTop: 6 }}>
+                  Para continuar, presiona el botón <strong>🎥 Tutorial</strong> (arriba).<br />
+                  Luego se habilitará <strong>Iniciar solicitud</strong>.
+                </div>
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" className="chat-btn" onClick={openTutorialManual}>
+                    🎥 Abrir tutorial ahora
+                  </button>
+                  <button type="button" className="chat-btn ghost" onClick={() => setTutorialOpened(true)}>
+                    Ya lo vi (desbloquear)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {messages.map((msg) => (
+              <div key={msg.id} className={"chat-message " + (msg.from === "bot" ? "chat-bot" : "chat-user")}>
                 <div
-                  className={
-                    "chat-bubble " +
-                    (msg.from === "bot" ? "bot-bubble" : "user-bubble")
-                  }
-                  dangerouslySetInnerHTML={{
-                    __html: msg.text.replace(/\n/g, "<br />"),
-                  }}
+                  className={"chat-bubble " + (msg.from === "bot" ? "bot-bubble" : "user-bubble")}
+                  dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, "<br />") }}
                 />
               </div>
             ))}
@@ -1285,17 +955,11 @@ export const ChatBotWidget = () => {
               <div className="chat-inline-card">
                 <div className="chat-inline-title">📍 Tracking de solicitud</div>
                 <div className="chat-inline-text">
-                  ID:{" "}
-                  <span className="id-mono">
-                    {publicCodeFromSimId(activeSimId)}
-                  </span>
+                  ID: <span className="id-mono">{publicCodeFromSimId(activeSimId)}</span>
                 </div>
 
                 <div className="tracker-progress" aria-hidden="true">
-                  <div
-                    className="tracker-progress-bar"
-                    style={{ width: `${trackerProgress}%` }}
-                  />
+                  <div className="tracker-progress-bar" style={{ width: `${trackerProgress}%` }} />
                 </div>
 
                 <div className="tracker">
@@ -1303,13 +967,7 @@ export const ChatBotWidget = () => {
                     const done = idx < trackerStep;
                     const active = idx === trackerStep;
                     return (
-                      <div
-                        key={st.title}
-                        className={
-                          "tracker-row " +
-                          (active ? "active" : done ? "done" : "")
-                        }
-                      >
+                      <div key={st.title} className={"tracker-row " + (active ? "active" : done ? "done" : "")}>
                         <span className="tracker-dot" aria-hidden="true" />
                         <div className="tracker-content">
                           <div className="tracker-title">{st.title}</div>
@@ -1322,33 +980,23 @@ export const ChatBotWidget = () => {
               </div>
             )}
 
-            {/* ✅ CHECKOUT CRIPTO (visual dentro del chat) */}
-            {(step === "PAY_METHOD" ||
-              step === "BUY_CRYPTO" ||
-              step === "PAY_CRYPTO") && (
+            {(step === "PAY_METHOD" || step === "BUY_CRYPTO" || step === "PAY_CRYPTO") && (
               <div className="chat-inline-card" style={{ marginTop: 10 }}>
                 <div className="chat-inline-title">💳 Checkout Cripto (Demo)</div>
                 <div className="chat-inline-text" style={{ lineHeight: 1.4 }}>
                   <div>
-                    <strong>Orden:</strong>{" "}
-                    <span className="id-mono">
-                      {publicCodeFromSimId(lastSimId)}
-                    </span>
+                    <strong>Orden:</strong> <span className="id-mono">{publicCodeFromSimId(lastSimId)}</span>
                   </div>
                   <div style={{ opacity: 0.9, marginTop: 6 }}>
-                    <strong>Producto:</strong>{" "}
-                    {service ? serviceLabel(service) : "—"}
+                    <strong>Producto:</strong> {service ? serviceLabel(service) : "—"}
                   </div>
                   <div style={{ opacity: 0.9 }}>
-                    <strong>Total:</strong>{" "}
-                    {service && priority
-                      ? `USD ${finalPrice.toLocaleString()}`
-                      : "—"}
+                    <strong>Total:</strong> {service && priority ? `USD ${finalPrice.toLocaleString()}` : "—"}
                   </div>
 
                   <div style={{ marginTop: 10, opacity: 0.88, fontSize: 13 }}>
-                    <em>Lemon</em> se usa para <strong>comprar cripto</strong>.
-                    El pago final se hace con <strong>NOWPayments</strong>.
+                    <em>Lemon</em> se usa para <strong>comprar cripto</strong>. El pago final se hace con{" "}
+                    <strong>NOWPayments</strong>.
                   </div>
 
                   {!!invoiceUrl && (
@@ -1366,14 +1014,7 @@ export const ChatBotWidget = () => {
                   )}
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    marginTop: 12,
-                  }}
-                >
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
                   <button
                     type="button"
                     className="chat-btn"
@@ -1381,9 +1022,7 @@ export const ChatBotWidget = () => {
                     disabled={creatingInvoice || !lastSimId}
                     title={!lastSimId ? "Primero genera una orden" : "Crear invoice y pagar"}
                   >
-                    {creatingInvoice
-                      ? "Creando pago…"
-                      : "🔐 Ya tengo cripto → Pagar (NOWPayments)"}
+                    {creatingInvoice ? "Creando pago…" : "🔐 Ya tengo cripto → Pagar (NOWPayments)"}
                   </button>
 
                   <button type="button" className="chat-btn ghost" onClick={openBuyWithLemon}>
@@ -1405,9 +1044,7 @@ export const ChatBotWidget = () => {
                         onClick={continueAfterLemon}
                         disabled={creatingInvoice || !lastSimId}
                       >
-                        {creatingInvoice
-                          ? "Creando pago…"
-                          : "✅ Ya compré → Continuar al pago (NOWPayments)"}
+                        {creatingInvoice ? "Creando pago…" : "✅ Ya compré → Continuar al pago (NOWPayments)"}
                       </button>
                     </div>
                   </div>
@@ -1428,14 +1065,8 @@ export const ChatBotWidget = () => {
           </div>
 
           <div className="chat-actions">
-            {/* Barra constante */}
             <div className="chat-nav">
-              <button
-                className="chat-chip"
-                type="button"
-                onClick={goBack}
-                disabled={!historyRef.current.length}
-              >
+              <button className="chat-chip" type="button" onClick={goBack} disabled={!historyRef.current.length}>
                 ⬅️ Atrás
               </button>
 
@@ -1443,13 +1074,27 @@ export const ChatBotWidget = () => {
                 🏠 Inicio
               </button>
 
-              <button className="chat-chip ghost" type="button" onClick={handleOpenTrackingLookup}>
-                📍 Ver el proceso
+              {/* ✅ Tutorial ARRIBA + resaltado si aún no lo abrieron */}
+              <button
+                className="chat-chip"
+                type="button"
+                onClick={openTutorialManual}
+                style={
+                  !tutorialOpened
+                    ? {
+                        border: "1px solid rgba(245,158,11,0.55)",
+                        background: "rgba(245,158,11,0.10)",
+                        boxShadow: "0 0 0 2px rgba(245,158,11,0.15) inset",
+                      }
+                    : undefined
+                }
+                title={!tutorialOpened ? "Obligatorio: abre el tutorial primero" : "Abrir tutorial"}
+              >
+                🎥 Tutorial {!tutorialOpened ? "←" : ""}
               </button>
 
-              {/* ✅ NUEVO: abrir tutorial manual */}
-              <button className="chat-chip ghost" type="button" onClick={openTutorialManual}>
-                🎥 Tutorial
+              <button className="chat-chip ghost" type="button" onClick={handleOpenTrackingLookup}>
+                📍 Ver el proceso
               </button>
 
               <button
@@ -1467,9 +1112,31 @@ export const ChatBotWidget = () => {
 
             {step === "INTRO" && (
               <div className="chat-buttons">
-                <button type="button" className="chat-btn" onClick={handleStart}>
-                  🧾 Iniciar solicitud
+                <button
+                  type="button"
+                  className="chat-btn"
+                  onClick={handleStart}
+                  disabled={!tutorialOpened}
+                  title={!tutorialOpened ? "Primero abre el tutorial (obligatorio)" : "Iniciar"}
+                  style={
+                    !tutorialOpened
+                      ? {
+                          opacity: 0.55,
+                          cursor: "not-allowed",
+                          filter: "grayscale(0.35)",
+                          boxShadow: "none",
+                        }
+                      : undefined
+                  }
+                >
+                  {!tutorialOpened ? "🔒 " : ""}🧾 Iniciar solicitud
                 </button>
+
+                {!tutorialOpened && (
+                  <div className="chat-hint" style={{ marginTop: 8 }}>
+                    ⚠️ Aún está bloqueado. Abre <strong>🎥 Tutorial</strong> para habilitarlo.
+                  </div>
+                )}
               </div>
             )}
 
@@ -1496,11 +1163,7 @@ export const ChatBotWidget = () => {
                   onChange={(e) => setTrackCodeInput(e.target.value)}
                   onKeyDown={onEnter(handleViewTrackingByCode)}
                 />
-                <button
-                  type="button"
-                  className="chat-btn small"
-                  onClick={handleViewTrackingByCode}
-                >
+                <button type="button" className="chat-btn small" onClick={handleViewTrackingByCode}>
                   Ver
                 </button>
               </div>
@@ -1555,8 +1218,7 @@ export const ChatBotWidget = () => {
 
                 {!canContinueID && (
                   <div className="chat-hint" style={{ gridColumn: "1 / -1", minHeight: 42 }}>
-                    Escribe <strong>nombre completo</strong> (2+ palabras) y un{" "}
-                    <strong>DNI</strong> válido (8+ dígitos).
+                    Escribe <strong>nombre completo</strong> (2+ palabras) y un <strong>DNI</strong> válido (8+ dígitos).
                   </div>
                 )}
               </div>
@@ -1685,9 +1347,7 @@ export const ChatBotWidget = () => {
             )}
 
             {step === "DONE" && (
-              <div className="chat-footer-note">
-                Flujo completado. Usa 🏠 Inicio o ↺ para reiniciar.
-              </div>
+              <div className="chat-footer-note">Flujo completado. Usa 🏠 Inicio o ↺ para reiniciar.</div>
             )}
           </div>
 
@@ -1719,9 +1379,7 @@ export const ChatBotWidget = () => {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
                   <div>
-                    <div style={{ fontWeight: 800, color: "#e5e7eb", fontSize: 16 }}>
-                      Panel privado · Operador
-                    </div>
+                    <div style={{ fontWeight: 800, color: "#e5e7eb", fontSize: 16 }}>Panel privado · Operador</div>
                     <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
                       Control manual del tracking (usuario no ve estos controles). Cerrar: <strong>Esc</strong>.
                     </div>
@@ -1798,10 +1456,7 @@ export const ChatBotWidget = () => {
 
                         <div style={{ display: "grid", gap: 8 }}>
                           {TRACKER_STAGES.map((st, idx) => {
-                            const cur =
-                              typeof trackingMap[operatorSelected] === "number"
-                                ? trackingMap[operatorSelected]
-                                : 0;
+                            const cur = typeof trackingMap[operatorSelected] === "number" ? trackingMap[operatorSelected] : 0;
                             const active = idx === cur;
                             return (
                               <button
