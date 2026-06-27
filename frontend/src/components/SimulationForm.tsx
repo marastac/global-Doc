@@ -1,6 +1,24 @@
-import { useState } from 'react';
+import { type FormEvent, useState } from 'react';
 
-const API_URL = 'http://localhost:3000/api/mock-payment';
+const STORAGE_KEY = 'docsim.requests.v1';
+
+const serviceLabels: Record<string, string> = {
+  visa: 'Visa Americana Elite',
+  green_card: 'Residencia / Green Card Preferencial',
+  passport_nationality: 'Pasaportes & Nacionalidad (Análisis Anti-Fraude)',
+  pasaporte_eu: 'Pasaporte Europeo Express',
+  licencia: 'Licencia Internacional Multipaís',
+};
+
+const generateSimId = () => {
+  const random = Math.floor(100000000000 + Math.random() * 900000000000);
+  return `S-${random}`;
+};
+
+const maskContact = (contact: string) => {
+  if (contact.length <= 6) return contact;
+  return `${contact.slice(0, 4)}••••${contact.slice(-3)}`;
+};
 
 export const SimulationForm = () => {
   const [fullName, setFullName] = useState('');
@@ -16,11 +34,24 @@ export const SimulationForm = () => {
     return digits.length >= 7 && digits.length <= 15;
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const saveDemoRecord = (record: any) => {
+    try {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const updated = [record, ...current].slice(0, 25);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+      window.dispatchEvent(
+        new CustomEvent('docsim:request-created', { detail: record })
+      );
+    } catch {
+      // No bloquea la simulación si localStorage falla
+    }
+  };
+
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setResult('Procesando solicitud…');
 
-    // validación de número
     if (!validatePhone(phoneNumber)) {
       setPhoneError('Ingrese un número de WhatsApp válido (mínimo 7 dígitos).');
       setResult(null);
@@ -30,29 +61,25 @@ export const SimulationForm = () => {
     setPhoneError(null);
 
     const fullContact = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+    const simId = generateSimId();
 
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: fullName,
-          emailHash: fullContact,
-          service,
-        }),
-      });
+    const record = {
+      simId,
+      name: fullName,
+      passport,
+      service,
+      serviceLabel: serviceLabels[service] || service,
+      contact: maskContact(fullContact),
+      status: 'Registrado en demo',
+      createdAt: new Date().toISOString(),
+      country: countryCode === '+51' ? 'Perú' : 'Internacional',
+    };
 
-      const data = await res.json();
-      if (data.error) {
-        setResult(`Error: ${data.error}`);
-      } else {
-        setResult(
-          `Solicitud registrada • ID: ${data.simId} • Estado: ${data.status}`
-        );
-      }
-    } catch (err) {
-      setResult('Error de conexión.');
-    }
+    saveDemoRecord(record);
+
+    setResult(
+      `Solicitud registrada • ID: ${simId} • Estado: ${record.status}`
+    );
   };
 
   const phoneDigits = phoneNumber.replace(/\D/g, '');
@@ -100,12 +127,9 @@ export const SimulationForm = () => {
               <option value="green_card">
                 Residencia / Green Card Preferencial
               </option>
-
-              {/* NUEVO: Pasaportes/Nacionalidad (simulado / preventivo) */}
               <option value="passport_nationality">
                 Pasaportes & Nacionalidad (Análisis Anti-Fraude)
               </option>
-
               <option value="pasaporte_eu">Pasaporte Europeo Express</option>
               <option value="licencia">Licencia Internacional Multipaís</option>
             </select>
@@ -167,7 +191,7 @@ export const SimulationForm = () => {
               {phoneError
                 ? 'Revise el número. Debe contener solo dígitos reales y al menos 7 cifras.'
                 : isPhoneValid
-                ? 'Formato correcto. El contacto se registra de forma encriptada en la bitácora.'
+                ? 'Formato correcto. El contacto se registra de forma segura dentro de esta simulación.'
                 : 'Se usará solo para notificaciones privadas dentro de esta simulación.'}
             </span>
           </label>
