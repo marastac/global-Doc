@@ -523,7 +523,7 @@ const openTutorialManual = () => {
   const buildSupportWhatsAppLink = (simId: string | null) => {
     const text = encodeURIComponent(
       [
-        "Hola, deseo coordinar mi solicitud (simulación):",
+        "Hola, deseo coordinar mi solicitud:",
         `• ID: ${publicCodeFromSimId(simId)}`,
         `• Nombre: ${fullName}`,
         `• País: ${country}`,
