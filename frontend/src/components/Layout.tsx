@@ -9,7 +9,7 @@ interface Props {
 export const Layout: React.FC<Props> = ({ children }) => {
   useEffect(() => {
     // Inicialización del Pixel de Meta
-    const PIXEL_ID = '1282637307096201';
+    const PIXEL_ID = '1553466963172125';
     ReactPixel.init(PIXEL_ID);
     
     // Rastrea la página cuando se carga el layout
