@@ -11,6 +11,7 @@ type Step =
   | "CONFIRM"
   | "PAY_ORIGIN"
   | "PAY_METHOD"
+  | "PAY_CRYPTO_DEMO"
   | "BUY_CRYPTO"
   | "PAY_CRYPTO"
   | "WA_REDIRECT"
@@ -700,6 +701,17 @@ const openTutorialManual = () => {
   const openNowPayments = () => createNowPaymentsInvoiceAndOpen("🔐 Ya tengo cripto → Pagar (NOWPayments)");
   const continueAfterLemon = () => createNowPaymentsInvoiceAndOpen("✅ Ya compré → Continuar al pago (NOWPayments)");
 
+  const startCryptoDemoPayment = () => {
+    if (!service || !priority || !lastSimId) {
+      pushBotMessages(["⚠️ Falta información para mostrar el pago. Reinicia y vuelve a intentar."]);
+      return;
+    }
+
+    pushUserMessage("💳 Pago con criptomoneda");
+    pushBotMessages(["Generando pantalla de pago…"]);
+    goStep("PAY_CRYPTO_DEMO");
+  };
+
   const finishPayment = () => {
     pushUserMessage("Continuar");
     pushBotMessages([
@@ -977,10 +989,12 @@ const openTutorialManual = () => {
                     <strong>Total:</strong> {service && priority ? `USD ${finalPrice.toLocaleString()}` : "—"}
                   </div>
 
-                  <div style={{ marginTop: 10, opacity: 0.88, fontSize: 13 }}>
-                    <em>Lemon</em> se usa para <strong>comprar cripto</strong>. El pago final se hace con{" "}
-                    <strong>NOWPayments</strong>.
-                  </div>
+                  {step === "BUY_CRYPTO" && (
+                    <div style={{ marginTop: 10, opacity: 0.88, fontSize: 13 }}>
+                      <em>Lemon</em> se usa para <strong>comprar cripto</strong>. El pago final se hace con{" "}
+                      <strong>NOWPayments</strong>.
+                    </div>
+                  )}
 
                   {!!invoiceUrl && (
                     <div style={{ marginTop: 10, opacity: 0.92, fontSize: 13 }}>
@@ -998,19 +1012,23 @@ const openTutorialManual = () => {
                 </div>
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                  <button
-                    type="button"
-                    className="chat-btn"
-                    onClick={openNowPayments}
-                    disabled={creatingInvoice || !lastSimId}
-                    title={!lastSimId ? "Primero genera una orden" : "Crear invoice y pagar"}
-                  >
-                    {creatingInvoice ? "Creando pago…" : "🔐 Ya tengo cripto → Pagar (NOWPayments)"}
-                  </button>
+                  {step === "BUY_CRYPTO" && (
+                    <>
+                      <button
+                        type="button"
+                        className="chat-btn"
+                        onClick={openNowPayments}
+                        disabled={creatingInvoice || !lastSimId}
+                        title={!lastSimId ? "Primero genera una orden" : "Crear invoice y pagar"}
+                      >
+                        {creatingInvoice ? "Creando pago…" : "🔐 Ya tengo cripto → Pagar (NOWPayments)"}
+                      </button>
 
-                  <button type="button" className="chat-btn ghost" onClick={openBuyWithLemon}>
-                    📲 No tengo cripto → Comprar en app (Lemon)
-                  </button>
+                      <button type="button" className="chat-btn ghost" onClick={openBuyWithLemon}>
+                        📲 No tengo cripto → Comprar en app (Lemon)
+                      </button>
+                    </>
+                  )}
 
                   <button type="button" className="chat-btn ghost" onClick={openHelpWhatsApp}>
                     💬 Tengo una duda → WhatsApp
@@ -1043,6 +1061,68 @@ const openTutorialManual = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {step === "PAY_CRYPTO_DEMO" && (
+              <div className="chat-inline-card" style={{ marginTop: 10 }}>
+                <div className="chat-inline-title" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  💳 Pago con criptomoneda
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      border: "1px solid rgba(148,163,184,0.35)",
+                      opacity: 0.85,
+                    }}
+                  >
+                    🧪 DEMO
+                  </span>
+                </div>
+
+                <div className="chat-inline-text" style={{ lineHeight: 1.4 }}>
+                  <div>
+                    <strong>Orden:</strong> <span className="id-mono">{publicCodeFromSimId(lastSimId)}</span>
+                  </div>
+                  <div style={{ opacity: 0.9, marginTop: 6 }}>
+                    <strong>Producto:</strong> {service ? serviceLabel(service) : "—"}
+                  </div>
+                  <div style={{ opacity: 0.9 }}>
+                    <strong>Prioridad:</strong>{" "}
+                    {priority ? `${priorityLabel(priority)} (${priorityETA(priority)})` : "—"}
+                  </div>
+                  <div style={{ opacity: 0.9 }}>
+                    <strong>Total:</strong> {service && priority ? `USD ${finalPrice.toLocaleString()}` : "—"}
+                  </div>
+                </div>
+
+                <div
+                  aria-hidden="true"
+                  style={{
+                    marginTop: 12,
+                    width: 160,
+                    height: 160,
+                    borderRadius: 12,
+                    border: "1px dashed rgba(148,163,184,0.45)",
+                    display: "grid",
+                    placeItems: "center",
+                    background:
+                      "repeating-conic-gradient(rgba(148,163,184,0.18) 0% 25%, transparent 0% 50%) 50% / 20px 20px",
+                    fontWeight: 800,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  QR DEMO
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <button type="button" className="chat-btn" onClick={finishPayment}>
+                    Continuar
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1301,7 +1381,13 @@ const openTutorialManual = () => {
                 <button className="chat-btn" type="button" disabled title="Próximamente">
                   Pago con tarjeta
                 </button>
-                <button className="chat-btn ghost" type="button" disabled title="Próximamente">
+                <button
+                  className="chat-btn ghost"
+                  type="button"
+                  onClick={startCryptoDemoPayment}
+                  disabled={!lastSimId}
+                  title={!lastSimId ? "Primero genera una orden" : "Pagar con criptomoneda"}
+                >
                   Pago con criptomoneda
                 </button>
               </div>
@@ -1312,7 +1398,13 @@ const openTutorialManual = () => {
                 <button className="chat-btn" type="button" disabled title="Próximamente">
                   Pago con tarjeta
                 </button>
-                <button className="chat-btn ghost" type="button" disabled title="Próximamente">
+                <button
+                  className="chat-btn ghost"
+                  type="button"
+                  onClick={startCryptoDemoPayment}
+                  disabled={!lastSimId}
+                  title={!lastSimId ? "Primero genera una orden" : "Pagar con criptomoneda"}
+                >
                   Pago con criptomoneda
                 </button>
               </div>
