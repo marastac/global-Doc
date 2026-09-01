@@ -9,6 +9,7 @@ type Step =
   | "SUMMARY"
   | "PHONE"
   | "CONFIRM"
+  | "PAY_ORIGIN"
   | "PAY_METHOD"
   | "BUY_CRYPTO"
   | "PAY_CRYPTO"
@@ -275,6 +276,8 @@ const openTutorialManual = () => {
   const [service, setService] = useState<string | null>(null);
   const [priority, setPriority] = useState<PriorityKey | null>(null);
 
+  const [payOrigin, setPayOrigin] = useState<"pe" | "other" | null>(null);
+
   const [phoneInput, setPhoneInput] = useState("+");
   const [phone, setPhone] = useState<string | null>(null);
 
@@ -388,6 +391,7 @@ const openTutorialManual = () => {
     setCountry("Perú");
     setService(null);
     setPriority(null);
+    setPayOrigin(null);
 
     setPhoneInput("+");
     setPhone(null);
@@ -587,17 +591,30 @@ const openTutorialManual = () => {
 
       pushBotMessages([
         `✅ Orden creada.\nID: <span class="id-mono">${publicCodeFromSimId(simId)}</span>`,
-        "Ahora elige cómo deseas pagar (cripto).",
-        "*Lemon se usa para <strong>comprar cripto</strong>. El pago final se hace con <strong>NOWPayments</strong>.",
+        "Antes de continuar con el pago, cuéntame: ¿eres de Perú?",
       ]);
 
-      setStep("PAY_METHOD");
+      setStep("PAY_ORIGIN");
     } catch (e: any) {
       pushBotMessages([`⚠️ No se pudo generar la orden: <strong>${String(e?.message || e)}</strong>`]);
       setStep("DONE");
     } finally {
       setProcessingSale(false);
     }
+  };
+
+  const handleOriginPeru = () => {
+    setPayOrigin("pe");
+    pushUserMessage("🇵🇪 Sí, soy de Perú");
+    pushBotMessages(["Perfecto. Elige tu método de pago."]);
+    goStep("PAY_METHOD");
+  };
+
+  const handleOriginOther = () => {
+    setPayOrigin("other");
+    pushUserMessage("🌎 No, soy de otro país");
+    pushBotMessages(["Perfecto. Elige tu método de pago."]);
+    goStep("PAY_METHOD");
   };
 
   const waHelpLink = useMemo(
@@ -946,7 +963,7 @@ const openTutorialManual = () => {
               </div>
             )}
 
-            {(step === "PAY_METHOD" || step === "BUY_CRYPTO" || step === "PAY_CRYPTO") && (
+            {(step === "BUY_CRYPTO" || step === "PAY_CRYPTO") && (
               <div className="chat-inline-card" style={{ marginTop: 10 }}>
                 <div className="chat-inline-title">💳 Checkout Cripto (Demo)</div>
                 <div className="chat-inline-text" style={{ lineHeight: 1.4 }}>
@@ -1258,6 +1275,45 @@ const openTutorialManual = () => {
                   }}
                 >
                   Terminar
+                </button>
+              </div>
+            )}
+
+            {step === "PAY_ORIGIN" && (
+              <div className="chat-buttons">
+                <button className="chat-btn" type="button" onClick={handleOriginPeru}>
+                  🇵🇪 Sí, soy de Perú
+                </button>
+                <button className="chat-btn ghost" type="button" onClick={handleOriginOther}>
+                  🌎 No, soy de otro país
+                </button>
+              </div>
+            )}
+
+            {step === "PAY_METHOD" && payOrigin === "pe" && (
+              <div className="chat-buttons">
+                <button className="chat-btn" type="button" disabled title="Próximamente">
+                  Pago sin tarjeta
+                </button>
+                <button className="chat-btn" type="button" disabled title="Próximamente">
+                  Pago con QR (Yape / Plin)
+                </button>
+                <button className="chat-btn" type="button" disabled title="Próximamente">
+                  Pago con tarjeta
+                </button>
+                <button className="chat-btn ghost" type="button" disabled title="Próximamente">
+                  Pago con criptomoneda
+                </button>
+              </div>
+            )}
+
+            {step === "PAY_METHOD" && payOrigin === "other" && (
+              <div className="chat-buttons">
+                <button className="chat-btn" type="button" disabled title="Próximamente">
+                  Pago con tarjeta
+                </button>
+                <button className="chat-btn ghost" type="button" disabled title="Próximamente">
+                  Pago con criptomoneda
                 </button>
               </div>
             )}
