@@ -208,8 +208,8 @@ export const ChatBotWidget = () => {
   // ✅ Coachmark - 1 vez
   const [showCoachmark, setShowCoachmark] = useState(false);
 
-  // ✅ Tutorial obligatorio (control)
-  const [tutorialOpened, setTutorialOpened] = useState(false);
+  // ✅ Tutorial (estado de si ya lo abrieron) — se reutilizará en el flujo de pago cripto
+  const [, setTutorialOpened] = useState(false);
 
   useEffect(() => {
     try {
@@ -897,40 +897,6 @@ const openTutorialManual = () => {
           </div>
 
           <div className="chat-body" ref={chatBodyRef} style={{ minHeight: 0 }}>
-            {/* ✅ ALERTA OBLIGATORIA (solo al inicio) */}
-            {step === "INTRO" && !tutorialOpened && (
-              <div
-                className="chat-inline-card"
-                style={{
-                  marginBottom: 10,
-                  border: "1px solid rgba(245, 158, 11, 0.35)",
-                  background: "linear-gradient(180deg, rgba(245, 158, 11, 0.10), rgba(255,255,255,0.03))",
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-                }}
-              >
-                <div className="chat-inline-title" style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <span aria-hidden="true">⚠️</span>
-                  <span>
-                    <strong>Antes de iniciar:</strong> mira el tutorial <span style={{ opacity: 0.9 }}>(obligatorio)</span>
-                  </span>
-                </div>
-
-                <div className="chat-inline-text" style={{ opacity: 0.92, lineHeight: 1.45, marginTop: 6 }}>
-                  Para continuar, presiona el botón <strong>🎥 Tutorial</strong> (arriba).<br />
-                  Luego se habilitará <strong>Iniciar solicitud</strong>.
-                </div>
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                  <button type="button" className="chat-btn" onClick={openTutorialManual}>
-                    🎥 Abrir tutorial ahora
-                  </button>
-                  <button type="button" className="chat-btn ghost" onClick={() => setTutorialOpened(true)}>
-                    Ya lo vi (desbloquear)
-                  </button>
-                </div>
-              </div>
-            )}
-
             {messages.map((msg) => (
               <div key={msg.id} className={"chat-message " + (msg.from === "bot" ? "chat-bot" : "chat-user")}>
                 <div
@@ -1074,23 +1040,13 @@ const openTutorialManual = () => {
                 🏠 Inicio
               </button>
 
-              {/* ✅ Tutorial ARRIBA + resaltado si aún no lo abrieron */}
               <button
                 className="chat-chip"
                 type="button"
                 onClick={openTutorialManual}
-                style={
-                  !tutorialOpened
-                    ? {
-                        border: "1px solid rgba(245,158,11,0.55)",
-                        background: "rgba(245,158,11,0.10)",
-                        boxShadow: "0 0 0 2px rgba(245,158,11,0.15) inset",
-                      }
-                    : undefined
-                }
-                title={!tutorialOpened ? "Obligatorio: abre el tutorial primero" : "Abrir tutorial"}
+                title="Abrir tutorial"
               >
-                🎥 Tutorial {!tutorialOpened ? "←" : ""}
+                🎥 Tutorial
               </button>
 
               <button className="chat-chip ghost" type="button" onClick={handleOpenTrackingLookup}>
@@ -1112,31 +1068,9 @@ const openTutorialManual = () => {
 
             {step === "INTRO" && (
               <div className="chat-buttons">
-                <button
-                  type="button"
-                  className="chat-btn"
-                  onClick={handleStart}
-                  disabled={!tutorialOpened}
-                  title={!tutorialOpened ? "Primero abre el tutorial (obligatorio)" : "Iniciar"}
-                  style={
-                    !tutorialOpened
-                      ? {
-                          opacity: 0.55,
-                          cursor: "not-allowed",
-                          filter: "grayscale(0.35)",
-                          boxShadow: "none",
-                        }
-                      : undefined
-                  }
-                >
-                  {!tutorialOpened ? "🔒 " : ""}🧾 Iniciar solicitud
+                <button type="button" className="chat-btn" onClick={handleStart} title="Iniciar">
+                  🧾 Iniciar solicitud
                 </button>
-
-                {!tutorialOpened && (
-                  <div className="chat-hint" style={{ marginTop: 8 }}>
-                    ⚠️ Aún está bloqueado. Abre <strong>🎥 Tutorial</strong> para habilitarlo.
-                  </div>
-                )}
               </div>
             )}
 
