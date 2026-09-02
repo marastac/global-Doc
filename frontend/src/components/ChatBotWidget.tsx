@@ -12,6 +12,7 @@ type Step =
   | "PAY_ORIGIN"
   | "PAY_METHOD"
   | "PAY_NO_CARD"
+  | "PAY_QR"
   | "PAY_CRYPTO_DEMO"
   | "BUY_CRYPTO"
   | "PAY_CRYPTO"
@@ -741,6 +742,34 @@ const openTutorialManual = () => {
     pushBotMessages(["✅ Listo. Cuando termines de coordinar, pulsa <strong>Continuar</strong>."]);
   };
 
+  const handleQrPayment = () => {
+    if (!lastSimId) return;
+
+    pushUserMessage("🔳 Pago con QR (Yape / Plin)");
+    pushBotMessages(["Perfecto. Coordinemos el pago con QR (Yape / Plin) por WhatsApp."]);
+    setWaClicked(false);
+    goStep("PAY_QR");
+  };
+
+  const openQrWhatsApp = () => {
+    if (!lastSimId) return;
+
+    const productLabel = service ? serviceLabel(service) : "el servicio seleccionado";
+    const text = encodeURIComponent(`Quiero ${productLabel}. Deseo pagar con QR.`);
+    const link = `https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`;
+
+    pushUserMessage("💬 Abrir WhatsApp para coordinar");
+
+    try {
+      window.open(link, "_blank", "noopener,noreferrer");
+    } catch {
+      // ignore
+    }
+
+    setWaClicked(true);
+    pushBotMessages(["✅ Listo. Cuando termines de coordinar, pulsa <strong>Continuar</strong>."]);
+  };
+
   const finishPayment = () => {
     pushUserMessage("Continuar");
     pushBotMessages([
@@ -1410,7 +1439,13 @@ const openTutorialManual = () => {
                 >
                   Pago sin tarjeta
                 </button>
-                <button className="chat-btn" type="button" disabled title="Próximamente">
+                <button
+                  className="chat-btn"
+                  type="button"
+                  onClick={handleQrPayment}
+                  disabled={!lastSimId}
+                  title={!lastSimId ? "Primero genera una orden" : "Pagar con QR (Yape / Plin)"}
+                >
                   Pago con QR (Yape / Plin)
                 </button>
                 <button className="chat-btn" type="button" disabled title="Próximamente">
@@ -1448,6 +1483,24 @@ const openTutorialManual = () => {
             {step === "PAY_NO_CARD" && (
               <div className="chat-buttons">
                 <button className="chat-btn" type="button" onClick={openNoCardWhatsApp} disabled={!lastSimId}>
+                  💬 Abrir WhatsApp para coordinar
+                </button>
+
+                <button className="chat-btn ghost" type="button" onClick={finishAfterWhatsApp} disabled={!waClicked}>
+                  Continuar
+                </button>
+
+                {!waClicked && (
+                  <div className="chat-hint" style={{ marginTop: 6 }}>
+                    Para completar la coordinación debes presionar <strong>“Abrir WhatsApp”</strong>.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === "PAY_QR" && (
+              <div className="chat-buttons">
+                <button className="chat-btn" type="button" onClick={openQrWhatsApp} disabled={!lastSimId}>
                   💬 Abrir WhatsApp para coordinar
                 </button>
 
