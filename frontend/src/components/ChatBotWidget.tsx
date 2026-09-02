@@ -531,7 +531,7 @@ const openTutorialManual = () => {
     goStep("CONFIRM");
   };
 
-  const buildSupportWhatsAppLink = (simId: string | null) => {
+  const buildSupportWhatsAppLink = (simId: string | null, paymentMethodLabel: string) => {
     const text = encodeURIComponent(
       [
         "Hola, deseo coordinar mi solicitud:",
@@ -542,6 +542,7 @@ const openTutorialManual = () => {
         `• Prioridad: ${priority ? `${priorityLabel(priority)} (${priorityETA(priority)})` : "—"}`,
         `• Total estimado: ${service && priority ? `USD ${finalPrice.toLocaleString()}` : "—"}`,
         `• WhatsApp: ${phone || "—"}`,
+        `• Método de pago: ${paymentMethodLabel}`,
       ].join("\n")
     );
 
@@ -625,7 +626,7 @@ const openTutorialManual = () => {
   };
 
   const waHelpLink = useMemo(
-    () => buildSupportWhatsAppLink(lastSimId),
+    () => buildSupportWhatsAppLink(lastSimId, "Pago con criptomoneda"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [lastSimId, fullName, country, service, priority, finalPrice, phone]
   );
@@ -772,9 +773,7 @@ const openTutorialManual = () => {
   const openNoCardWhatsApp = () => {
     if (!lastSimId) return;
 
-    const productLabel = service ? serviceLabel(service) : "el servicio seleccionado";
-    const text = encodeURIComponent(`Quiero ${productLabel}. Deseo pagar sin tarjeta.`);
-    const link = `https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`;
+    const link = buildSupportWhatsAppLink(lastSimId, "Pago sin tarjeta");
 
     pushUserMessage("💬 Abrir WhatsApp para coordinar");
 
@@ -800,9 +799,7 @@ const openTutorialManual = () => {
   const openQrWhatsApp = () => {
     if (!lastSimId) return;
 
-    const productLabel = service ? serviceLabel(service) : "el servicio seleccionado";
-    const text = encodeURIComponent(`Quiero ${productLabel}. Deseo pagar con QR.`);
-    const link = `https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`;
+    const link = buildSupportWhatsAppLink(lastSimId, "Pago con QR (Yape / Plin)");
 
     pushUserMessage("💬 Abrir WhatsApp para coordinar");
 
@@ -828,9 +825,7 @@ const openTutorialManual = () => {
   const openCardWhatsApp = () => {
     if (!lastSimId) return;
 
-    const productLabel = service ? serviceLabel(service) : "el servicio seleccionado";
-    const text = encodeURIComponent(`Quiero ${productLabel}. Deseo pagar con tarjeta.`);
-    const link = `https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`;
+    const link = buildSupportWhatsAppLink(lastSimId, "Pago con tarjeta");
 
     pushUserMessage("💬 Abrir WhatsApp para coordinar");
 
