@@ -11,6 +11,7 @@ type Step =
   | "CONFIRM"
   | "PAY_ORIGIN"
   | "PAY_METHOD"
+  | "PAY_NO_CARD"
   | "PAY_CRYPTO_DEMO"
   | "BUY_CRYPTO"
   | "PAY_CRYPTO"
@@ -712,6 +713,34 @@ const openTutorialManual = () => {
     goStep("PAY_CRYPTO_DEMO");
   };
 
+  const handleNoCardPayment = () => {
+    if (!lastSimId) return;
+
+    pushUserMessage("💵 Pago sin tarjeta");
+    pushBotMessages(["Perfecto. Coordinemos el pago sin tarjeta por WhatsApp."]);
+    setWaClicked(false);
+    goStep("PAY_NO_CARD");
+  };
+
+  const openNoCardWhatsApp = () => {
+    if (!lastSimId) return;
+
+    const productLabel = service ? serviceLabel(service) : "el servicio seleccionado";
+    const text = encodeURIComponent(`Quiero ${productLabel}. Deseo pagar sin tarjeta.`);
+    const link = `https://wa.me/${SUPPORT_WHATSAPP}?text=${text}`;
+
+    pushUserMessage("💬 Abrir WhatsApp para coordinar");
+
+    try {
+      window.open(link, "_blank", "noopener,noreferrer");
+    } catch {
+      // ignore
+    }
+
+    setWaClicked(true);
+    pushBotMessages(["✅ Listo. Cuando termines de coordinar, pulsa <strong>Continuar</strong>."]);
+  };
+
   const finishPayment = () => {
     pushUserMessage("Continuar");
     pushBotMessages([
@@ -1372,7 +1401,13 @@ const openTutorialManual = () => {
 
             {step === "PAY_METHOD" && payOrigin === "pe" && (
               <div className="chat-buttons">
-                <button className="chat-btn" type="button" disabled title="Próximamente">
+                <button
+                  className="chat-btn"
+                  type="button"
+                  onClick={handleNoCardPayment}
+                  disabled={!lastSimId}
+                  title={!lastSimId ? "Primero genera una orden" : "Pagar sin tarjeta"}
+                >
                   Pago sin tarjeta
                 </button>
                 <button className="chat-btn" type="button" disabled title="Próximamente">
@@ -1407,6 +1442,24 @@ const openTutorialManual = () => {
                 >
                   Pago con criptomoneda
                 </button>
+              </div>
+            )}
+
+            {step === "PAY_NO_CARD" && (
+              <div className="chat-buttons">
+                <button className="chat-btn" type="button" onClick={openNoCardWhatsApp} disabled={!lastSimId}>
+                  💬 Abrir WhatsApp para coordinar
+                </button>
+
+                <button className="chat-btn ghost" type="button" onClick={finishAfterWhatsApp} disabled={!waClicked}>
+                  Continuar
+                </button>
+
+                {!waClicked && (
+                  <div className="chat-hint" style={{ marginTop: 6 }}>
+                    Para completar la coordinación debes presionar <strong>“Abrir WhatsApp”</strong>.
+                  </div>
+                )}
               </div>
             )}
 
