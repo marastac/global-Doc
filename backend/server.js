@@ -130,16 +130,40 @@ function computeHmacHex(algo, secret, bodyBuffer) {
   return crypto.createHmac(algo, secret).update(bodyBuffer).digest("hex");
 }
 
+// Comparación en tiempo constante (evita timing attacks sobre la firma)
+function safeEqualHex(a, b) {
+  try {
+    const bufA = Buffer.from(a, "hex");
+    const bufB = Buffer.from(b, "hex");
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 function verifyNowPaymentsSignature(req) {
-  const sig = (req.headers["x-nowpayments-sig"] || "").toString().trim();
+  const sig = (req.headers["x-nowpayments-sig"] || "").toString().trim().toLowerCase();
   if (!sig) return false;
 
   const raw = req.rawBody || Buffer.from("");
   const h512 = computeHmacHex("sha512", NOWPAYMENTS_IPN_SECRET, raw);
   const h256 = computeHmacHex("sha256", NOWPAYMENTS_IPN_SECRET, raw);
 
-  const a = sig.toLowerCase();
-  return a === h512.toLowerCase() || a === h256.toLowerCase();
+  return safeEqualHex(sig, h512) || safeEqualHex(sig, h256);
+}
+
+// Estados de pago de NOWPayments normalizados a 4 estados para la UI
+const NOWPAYMENTS_CONFIRMED_STATUSES = new Set(["confirmed", "finished"]);
+const NOWPAYMENTS_IN_PROGRESS_STATUSES = new Set(["confirming", "sending", "partially_paid"]);
+const NOWPAYMENTS_FAILED_STATUSES = new Set(["failed", "refunded", "expired"]);
+
+function normalizePaymentState(rawStatus) {
+  const s = (rawStatus || "").toString().trim().toLowerCase();
+  if (NOWPAYMENTS_CONFIRMED_STATUSES.has(s)) return "confirmed";
+  if (NOWPAYMENTS_FAILED_STATUSES.has(s)) return "failed";
+  if (NOWPAYMENTS_IN_PROGRESS_STATUSES.has(s)) return "confirming";
+  return "waiting";
 }
 
 async function nowpaymentsFetch(pathname, method, bodyObj) {
@@ -396,8 +420,9 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
     };
 
     const created = await nowpaymentsFetch("/v1/invoice", "POST", payload);
+    const invoiceId = created?.id || created?.invoice_id || null;
 
-    // Guardar evidencia
+    // Guardar evidencia, vinculada explícitamente a la orden original
     const db = readDB();
     db.push({
       simId: `SIM-INVOICE-${Date.now()}`,
@@ -406,12 +431,14 @@ app.post("/api/nowpayments/invoice", async (req, res) => {
       nameSanitized: "nowpayments-invoice",
       timestamp: new Date().toISOString(),
       result: "pending",
+      order_id: order_id,
+      invoice_id: invoiceId,
       invoice: created,
     });
     writeDB(db);
 
     return safeJson(res, 200, {
-      invoice_id: created?.id || created?.invoice_id || null,
+      invoice_id: invoiceId,
       invoice_url: created?.invoice_url || created?.invoiceUrl || created?.payment_url || null,
       raw: created,
     });
@@ -443,6 +470,9 @@ app.post("/api/nowpayments/ipn", (req, res) => {
     if (!okSig) return safeJson(res, 401, { error: "invalid signature" });
 
     const ipn = req.body || {};
+    const orderId = ipn?.order_id || null;
+    const paymentStatus = ipn?.payment_status || null;
+
     const db = readDB();
     db.push({
       simId: `SIM-IPN-${Date.now()}`,
@@ -450,7 +480,10 @@ app.post("/api/nowpayments/ipn", (req, res) => {
       emailHash: null,
       nameSanitized: "nowpayments-ipn",
       timestamp: new Date().toISOString(),
-      result: "success",
+      result: normalizePaymentState(paymentStatus),
+      order_id: orderId,
+      invoice_id: ipn?.invoice_id || null,
+      payment_status: paymentStatus,
       ipn,
     });
     writeDB(db);
@@ -464,6 +497,52 @@ app.post("/api/nowpayments/ipn", (req, res) => {
 // success / cancel (front redirige aquí como demo)
 app.get("/api/nowpayments/ok", (req, res) => res.send("OK (simulation)"));
 app.get("/api/nowpayments/cancel", (req, res) => res.send("CANCEL (simulation)"));
+
+// Estado de pago de una orden, para que el frontend haga polling.
+// Fuente de verdad: IPNs verificados (firma ya validada al guardarlos) vinculados a este order_id.
+// Si aún no llegó ningún IPN, se hace un mejor esfuerzo consultando la invoice en NOWPayments.
+app.get("/api/nowpayments/order-status/:orderId", async (req, res) => {
+  try {
+    const orderId = String(req.params.orderId || "").trim();
+    if (!orderId) return safeJson(res, 400, { error: "orderId requerido" });
+
+    const db = readDB();
+
+    const invoiceRecord = db
+      .filter((r) => r.order_id === orderId && r.invoice_id)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      .pop();
+
+    const ipnRecords = db
+      .filter((r) => r.order_id === orderId && r.payment_status)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const lastIpn = ipnRecords.length ? ipnRecords[ipnRecords.length - 1] : null;
+
+    let rawStatus = lastIpn ? lastIpn.payment_status : null;
+
+    // Sin IPN todavía: mejor esfuerzo consultando NOWPayments directamente
+    if (!rawStatus && invoiceRecord?.invoice_id && NOWPAYMENTS_API_KEY) {
+      try {
+        const live = await nowpaymentsFetch(`/v1/invoice/${encodeURIComponent(invoiceRecord.invoice_id)}`, "GET");
+        rawStatus = live?.payment_status || live?.invoice_status || live?.status || null;
+      } catch {
+        // best-effort: si falla la consulta en vivo, seguimos con "waiting"
+      }
+    }
+
+    return safeJson(res, 200, {
+      ok: true,
+      order_id: orderId,
+      invoice_id: invoiceRecord?.invoice_id || null,
+      payment_status: rawStatus || null,
+      state: normalizePaymentState(rawStatus),
+      updated_at: lastIpn?.timestamp || invoiceRecord?.timestamp || null,
+    });
+  } catch (e) {
+    return safeJson(res, 500, { error: e?.message || "Error consultando estado de la orden" });
+  }
+});
 
 /* ================== GENERADOR AUTOMÁTICO ================== */
 
