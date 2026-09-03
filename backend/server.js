@@ -45,7 +45,12 @@ function getOriginOnly(url) {
   }
 }
 
-const allowedOrigins = new Set(["http://localhost:5173", "http://127.0.0.1:5173"]);
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://globaldoc.business",
+  "https://www.globaldoc.business",
+]);
 
 // Si PUBLIC_BASE_URL es tu frontend (Vercel), lo permitimos también.
 const frontendOrigin = getOriginOnly(PUBLIC_BASE_URL);
