@@ -48,6 +48,9 @@ const TUTORIAL_VIDEO_SRC =
   ((import.meta as any)?.env?.VITE_TUTORIAL_VIDEO_SRC as string | undefined)
     ?.trim?.() || "/media/tutorial.mp4";
 
+// 🔒 Desactivado temporalmente: oculta el botón "🎥 Tutorial" de la UI sin tocar su lógica.
+const TUTORIAL_BUTTON_ENABLED = false;
+
 const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
 const normalizeSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
 
@@ -1213,14 +1216,16 @@ const openTutorialManual = () => {
                 🏠 Inicio
               </button>
 
-              <button
-                className="chat-chip"
-                type="button"
-                onClick={openTutorialManual}
-                title="Abrir tutorial"
-              >
-                🎥 Tutorial
-              </button>
+              {TUTORIAL_BUTTON_ENABLED && (
+                <button
+                  className="chat-chip"
+                  type="button"
+                  onClick={openTutorialManual}
+                  title="Abrir tutorial"
+                >
+                  🎥 Tutorial
+                </button>
+              )}
 
               <button className="chat-chip ghost" type="button" onClick={handleOpenTrackingLookup}>
                 📍 Ver el proceso
